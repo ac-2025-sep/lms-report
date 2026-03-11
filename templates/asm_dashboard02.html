@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluster & ASM Performance Dashboard</title>
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #f3f6f9;
+            font-family: 'Inter', sans-serif;
+            padding: 20px;
+            color: #252525;
+        }
+
+        .dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .title h1 {
+            font-weight: 600;
+            font-size: 1.8rem;
+            color: #1e3a6f;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .title h1 i {
+            background: #1e3a6f;
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+        }
+
+        .title .sub {
+            color: #5f6b7a;
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 40px;
+            border: 1px solid #e4eaf1;
+        }
+
+        .view-select {
+            padding: 8px 16px;
+            border: 1px solid #cfdae7;
+            border-radius: 30px;
+            font-weight: 500;
+            color: #1e3a6f;
+            background: white;
+            cursor: pointer;
+        }
+
+        .refresh-btn, .export-btn {
+            padding: 8px 16px;
+            border: 1px solid #cfdae7;
+            border-radius: 30px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover, .export-btn:hover {
+            background: #f0f5ff;
+            border-color: #1e6bc7;
+        }
+
+        .export-btn {
+            background: #1e3a6f;
+            color: white;
+            border-color: #1e3a6f;
+        }
+
+        .export-btn:hover {
+            background: #2a4a8a;
+        }
+
+        /* Summary Cards */
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #eef3f9;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+
+        .summary-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #5f6b7a;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .summary-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1e2b3f;
+        }
+
+        /* Metrics Cards */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            border-left: 4px solid;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+
+        .metric-card.assigned { border-color: #1e6bc7; }
+        .metric-card.completed { border-color: #107c41; }
+        .metric-card.progress { border-color: #f9b84a; }
+        .metric-card.notstarted { border-color: #dc3545; }
+
+        .metric-title {
+            font-size: 0.9rem;
+            color: #5f6b7a;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e2b3f;
+        }
+
+        /* Charts Row */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #eef3f9;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .chart-header h3 {
+            font-size: 1.1rem;
+            color: #31435f;
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Clusters Grid */
+        .section-title {
+            font-size: 1.2rem;
+            color: #1e3a6f;
+            margin: 24px 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .clusters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .cluster-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #eef3f9;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .cluster-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -8px rgba(0,70,150,0.15);
+            border-color: #1e6bc7;
+        }
+
+        .cluster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .cluster-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e3a6f;
+        }
+
+        .cluster-badge {
+            background: #e8f0fe;
+            color: #1e3a6f;
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .cluster-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 8px;
+            background: #f8fafd;
+            border-radius: 12px;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #1e2b3f;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #6e819b;
+            text-transform: uppercase;
+        }
+
+        .progress-container {
+            margin-top: 16px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: #eaeff5;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1e6bc7, #3993f0);
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-container {
+            background: white;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 1200px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #eef3f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #1e3a6f, #2a4a8a);
+            color: white;
+            border-radius: 24px 24px 0 0;
+        }
+
+        .modal-header h2 {
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .modal-summary-card {
+            background: #f8fafd;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .modal-summary-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1e3a6f;
+        }
+
+        .modal-summary-label {
+            font-size: 0.8rem;
+            color: #5f6b7a;
+            margin-top: 4px;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section h3 {
+            font-size: 1.1rem;
+            color: #1e3a6f;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        th {
+            background: #f8fafd;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #5f6b7a;
+            border-bottom: 2px solid #e4eaf1;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eef3f9;
+        }
+
+        .asm-badge {
+            background: #1e6bc7;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-completed { background: #e0f2e9; color: #107c41; }
+        .badge-progress { background: #fff3e0; color: #f9b84a; }
+        .badge-notstarted { background: #ffebee; color: #dc3545; }
+
+        .mini-progress {
+            width: 60px;
+            height: 6px;
+            background: #eaeff5;
+            border-radius: 10px;
+            overflow: hidden;
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-spinner {
+            background: white;
+            padding: 24px 40px;
+            border-radius: 60px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            font-weight: 600;
+            color: #1e3a6f;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .footer {
+            margin-top: 32px;
+            text-align: right;
+            color: #8a9bb0;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 1024px) {
+            .summary-row, .metrics-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Loading data...
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="clusterModal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-layer-group"></i>
+                    <span id="modalClusterName">Cluster Details</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-summary" id="modalSummary">
+                    <!-- Dynamic summary cards -->
+                </div>
+
+                <div class="modal-section">
+                    <h3><i class="fas fa-user-tie"></i> ASM-wise Distribution</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ASM</th>
+                                <th>Dealers</th>
+                                <th>Assigned</th>
+                                <th>Completed</th>
+                                <th>In Progress</th>
+                                <th>Not Started</th>
+                                <th>Avg Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalAsmTable">
+                            <tr><td colspan="7" style="text-align:center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="modal-section">
+                    <h3><i class="fas fa-users"></i> Dealers & Champions</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Dealer Name</th>
+                                <th>Dealer ID</th>
+                                <th>ASM 1</th>
+                                <th>ASM 2</th>
+                                <th>Champion</th>
+                                <th>Mobile</th>
+                                <th>Courses</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalDealerTable">
+                            <tr><td colspan="8" style="text-align:center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="header">
+            <div class="title">
+                <h1>
+                    <i class="fas fa-chart-line"></i>
+                    Cluster & ASM Analytics
+                </h1>
+                <div class="sub">Champion Dealers Performance Dashboard</div>
+            </div>
+            <div class="controls">
+                <select id="viewSelect" class="view-select">
+                    <option value="clusters">Cluster View</option>
+                    <option value="asms">ASM View</option>
+                </select>
+                <button class="refresh-btn" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="export-btn" onclick="exportData()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+
+        <div id="errorMessage" class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="errorText"></span>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="summary-title">Total Clusters</div>
+                <div class="summary-value" id="totalClusters">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Total ASMs</div>
+                <div class="summary-value" id="totalAsms">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Total Dealers</div>
+                <div class="summary-value" id="totalDealers">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Total Courses</div>
+                <div class="summary-value" id="totalCourses">0</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-title">Avg Progress</div>
+                <div class="summary-value" id="avgProgress">0%</div>
+            </div>
+        </div>
+
+        <!-- Metrics Cards -->
+        <div class="metrics-row">
+            <div class="metric-card assigned">
+                <div class="metric-title"><i class="fas fa-tasks"></i> Assigned</div>
+                <div class="metric-value" id="assignedCount">0</div>
+            </div>
+            <div class="metric-card completed">
+                <div class="metric-title"><i class="fas fa-check-circle"></i> Completed</div>
+                <div class="metric-value" id="completedCount">0</div>
+            </div>
+            <div class="metric-card progress">
+                <div class="metric-title"><i class="fas fa-spinner"></i> In Progress</div>
+                <div class="metric-value" id="progressCount">0</div>
+            </div>
+            <div class="metric-card notstarted">
+                <div class="metric-title"><i class="fas fa-clock"></i> Not Started</div>
+                <div class="metric-value" id="notStartedCount">0</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-chart-bar"></i> Cluster Performance</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="clusterChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-chart-pie"></i> Status Distribution</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clusters Grid -->
+        <div class="section-title">
+            <i class="fas fa-layer-group"></i>
+            <span>Clusters (Click on any card for details)</span>
+        </div>
+        <div id="clustersGrid" class="clusters-grid">
+            <div style="grid-column: 1/-1; text-align: center; padding: 40px;">
+                <i class="fas fa-spinner fa-spin"></i> Loading clusters...
+            </div>
+        </div>
+
+        <div class="footer">
+            <span><i class="far fa-clock"></i> Last updated: <span id="lastUpdated">Just now</span></span>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://demodms.staqo.com/lmsreport';
+        let clusterChart, statusChart;
+        let currentView = 'clusters';
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            document.getElementById('errorText').textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function formatNumber(num) {
+            return num?.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") || '0';
+        }
+
+        function closeModal() {
+            document.getElementById('clusterModal').style.display = 'none';
+        }
+
+        // Load all data
+        async function loadAllData() {
+            showLoading(true);
+            try {
+                await loadSummaryMetrics();
+                await loadClusterPerformance();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showError('Failed to load dashboard data');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load summary metrics
+        async function loadSummaryMetrics() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/lms-reports/dashboard-metrics`);
+                if (!response.ok) throw new Error('Failed to fetch metrics');
+                
+                const data = await response.json();
+                console.log('Summary metrics:', data);
+
+                // Update summary cards
+                document.getElementById('totalClusters').textContent = data.total_clusters || 0;
+                document.getElementById('totalAsms').textContent = data.total_asms || 0;
+                document.getElementById('totalDealers').textContent = formatNumber(data.total_dealers || 0);
+                document.getElementById('totalCourses').textContent = formatNumber(data.total_assigned_courses || 0);
+                document.getElementById('avgProgress').textContent = (data.overall_progress || 0) + '%';
+
+                // Update metric cards
+                document.getElementById('assignedCount').textContent = formatNumber(data.total_assigned_courses || 0);
+                document.getElementById('completedCount').textContent = formatNumber(data.total_completed || 0);
+                document.getElementById('progressCount').textContent = formatNumber(data.total_in_progress || 0);
+                document.getElementById('notStartedCount').textContent = formatNumber(data.total_not_started || 0);
+
+                // Update status chart
+                updateStatusChart(data);
+                
+            } catch (error) {
+                console.error('Error loading summary metrics:', error);
+                throw error;
+            }
+        }
+
+        // Load cluster performance
+        async function loadClusterPerformance() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/lms-reports/cluster-performance`);
+                if (!response.ok) throw new Error('Failed to fetch cluster data');
+                
+                const data = await response.json();
+                console.log('Cluster data:', data);
+
+                // Update clusters grid
+                renderClustersGrid(data.clusters || []);
+                
+                // Update cluster chart
+                updateClusterChart(data.clusters || []);
+                
+            } catch (error) {
+                console.error('Error loading cluster performance:', error);
+                throw error;
+            }
+        }
+
+        // Render clusters grid
+        function renderClustersGrid(clusters) {
+            const grid = document.getElementById('clustersGrid');
+            
+            if (!clusters || clusters.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px;">No clusters found</div>';
+                return;
+            }
+
+            let html = '';
+            clusters.forEach(cluster => {
+                const progress = parseFloat(cluster.avg_progress || 0).toFixed(1);
+                
+                html += `
+                    <div class="cluster-card" onclick="showClusterDetails('${cluster.cluster.replace(/'/g, "\\'")}')">
+                        <div class="cluster-header">
+                            <span class="cluster-name">${cluster.cluster}</span>
+                            <span class="cluster-badge">${cluster.total_users || 0} dealers</span>
+                        </div>
+                        <div class="cluster-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">${formatNumber(cluster.assigned_courses || 0)}</div>
+                                <div class="stat-label">Assigned</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${formatNumber(cluster.completed || 0)}</div>
+                                <div class="stat-label">Completed</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${formatNumber(cluster.in_progress || 0)}</div>
+                                <div class="stat-label">In Progress</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${formatNumber(cluster.not_started || 0)}</div>
+                                <div class="stat-label">Not Started</div>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>Avg Progress</span>
+                                <span>${progress}%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width: ${progress}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            grid.innerHTML = html;
+        }
+
+        // Update cluster chart
+        function updateClusterChart(clusters) {
+            const ctx = document.getElementById('clusterChart').getContext('2d');
+            
+            if (clusterChart) clusterChart.destroy();
+            
+            clusterChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: clusters.map(c => c.cluster),
+                    datasets: [
+                        {
+                            label: 'Completed',
+                            data: clusters.map(c => c.completed || 0),
+                            backgroundColor: '#107c41',
+                            stack: 'total'
+                        },
+                        {
+                            label: 'In Progress',
+                            data: clusters.map(c => c.in_progress || 0),
+                            backgroundColor: '#f9b84a',
+                            stack: 'total'
+                        },
+                        {
+                            label: 'Not Started',
+                            data: clusters.map(c => c.not_started || 0),
+                            backgroundColor: '#dc3545',
+                            stack: 'total'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    },
+                    onClick: (event, items) => {
+                        if (items && items.length > 0) {
+                            const index = items[0].dataIndex;
+                            showClusterDetails(clusters[index].cluster);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update status chart
+        function updateStatusChart(data) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            if (statusChart) statusChart.destroy();
+            
+            statusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'In Progress', 'Not Started'],
+                    datasets: [{
+                        data: [
+                            data.total_completed || 0,
+                            data.total_in_progress || 0,
+                            data.total_not_started || 0
+                        ],
+                        backgroundColor: ['#107c41', '#f9b84a', '#dc3545'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // Show cluster details in modal
+        async function showClusterDetails(clusterName) {
+            showLoading(true);
+            try {
+                document.getElementById('modalClusterName').textContent = clusterName;
+                
+                const response = await fetch(`${API_BASE_URL}/lms-reports/asm-performance/${encodeURIComponent(clusterName)}`);
+                if (!response.ok) throw new Error('Failed to fetch cluster details');
+                
+                const data = await response.json();
+                console.log('Cluster details:', data);
+
+                // Update modal summary
+                document.getElementById('modalSummary').innerHTML = `
+                    <div class="modal-summary-card">
+                        <div class="modal-summary-value">${data.totals?.dealers || 0}</div>
+                        <div class="modal-summary-label">Total Dealers</div>
+                    </div>
+                    <div class="modal-summary-card">
+                        <div class="modal-summary-value">${formatNumber(data.totals?.assigned_courses || 0)}</div>
+                        <div class="modal-summary-label">Assigned Courses</div>
+                    </div>
+                    <div class="modal-summary-card">
+                        <div class="modal-summary-value">${data.totals?.completed || 0}</div>
+                        <div class="modal-summary-label">Completed</div>
+                    </div>
+                    <div class="modal-summary-card">
+                        <div class="modal-summary-value">${data.totals?.avg_progress || 0}%</div>
+                        <div class="modal-summary-label">Avg Progress</div>
+                    </div>
+                `;
+
+                // Group by ASM
+                const asmMap = new Map();
+                data.dealers?.forEach(dealer => {
+                    const asm1 = dealer.asm_1 || 'Unassigned';
+                    const asm2 = dealer.asm_2 || 'Unassigned';
+                    
+                    [asm1, asm2].forEach(asm => {
+                        if (asm !== 'Unassigned' && asm !== 'N/A') {
+                            if (!asmMap.has(asm)) {
+                                asmMap.set(asm, {
+                                    dealers: [],
+                                    assigned: 0,
+                                    completed: 0,
+                                    inProgress: 0,
+                                    notStarted: 0,
+                                    totalProgress: 0
+                                });
+                            }
+                            const asmData = asmMap.get(asm);
+                            asmData.dealers.push(dealer);
+                            asmData.assigned += dealer.courses_assigned || 0;
+                            asmData.completed += dealer.completed || 0;
+                            asmData.inProgress += dealer.in_progress || 0;
+                            asmData.notStarted += dealer.not_started || 0;
+                            asmData.totalProgress += dealer.avg_progress || 0;
+                        }
+                    });
+                });
+
+                // Render ASM table
+                let asmHtml = '';
+                for (const [asm, asmData] of asmMap) {
+                    const avgProgress = asmData.dealers.length > 0 ? 
+                        (asmData.totalProgress / asmData.dealers.length).toFixed(1) : 0;
+                    
+                    asmHtml += `
+                        <tr>
+                            <td><span class="asm-badge">${asm}</span></td>
+                            <td>${asmData.dealers.length}</td>
+                            <td>${formatNumber(asmData.assigned)}</td>
+                            <td>${asmData.completed}</td>
+                            <td>${asmData.inProgress}</td>
+                            <td>${asmData.notStarted}</td>
+                            <td>${avgProgress}%</td>
+                        </tr>
+                    `;
+                }
+                
+                document.getElementById('modalAsmTable').innerHTML = asmHtml || 
+                    '<tr><td colspan="7" style="text-align:center;">No ASM data found</td></tr>';
+
+                // Render dealers table
+                let dealerHtml = '';
+                data.dealers?.forEach(dealer => {
+                    const progressClass = dealer.avg_progress >= 70 ? 'badge-completed' : 
+                                         dealer.avg_progress > 0 ? 'badge-progress' : 'badge-notstarted';
+                    
+                    dealerHtml += `
+                        <tr>
+                            <td><strong>${dealer.dealer_name || 'N/A'}</strong></td>
+                            <td>${dealer.dealer_id || 'N/A'}</td>
+                            <td>${dealer.asm_1 || 'N/A'}</td>
+                            <td>${dealer.asm_2 || 'N/A'}</td>
+                            <td>${dealer.champion_name || dealer.username || 'N/A'}</td>
+                            <td>${dealer.champion_mobile || 'N/A'}</td>
+                            <td>${dealer.courses_assigned || 0}</td>
+                            <td>
+                                <span class="status-badge ${progressClass}">${dealer.avg_progress || 0}%</span>
+                                <div class="mini-progress">
+                                    <div style="height:100%; width:${dealer.avg_progress || 0}%; background: #1e6bc7;"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                document.getElementById('modalDealerTable').innerHTML = dealerHtml || 
+                    '<tr><td colspan="8" style="text-align:center;">No dealers found</td></tr>';
+
+                // Show modal
+                document.getElementById('clusterModal').style.display = 'flex';
+                
+            } catch (error) {
+                console.error('Error loading cluster details:', error);
+                showError('Failed to load cluster details');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Refresh data
+        async function refreshData() {
+            await loadAllData();
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Export data
+        async function exportData() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/lms-reports/export/dashboard`);
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cluster_report_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                
+            } catch (error) {
+                console.error('Error exporting:', error);
+                showError('Failed to export data');
+            }
+        }
+
+        // View change handler
+        document.getElementById('viewSelect').addEventListener('change', function(e) {
+            currentView = e.target.value;
+            if (currentView === 'asms') {
+                alert('ASM view coming soon!');
+                this.value = 'clusters';
+            }
+        });
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const modal = document.getElementById('clusterModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', loadAllData);
+    </script>
+</body>
+</html>
