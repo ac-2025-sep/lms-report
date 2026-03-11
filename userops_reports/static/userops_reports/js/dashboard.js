@@ -1,4 +1,4 @@
-const API_BASE_URL = '';
+const API_BASE_URL = new URL('../api', `${window.location.origin}${window.location.pathname.replace(/\/?$/, '/')}`).pathname;
         let mainChart, statusChart;
         let currentView = 'courses';
         let currentViewMode = 'card';
@@ -184,7 +184,7 @@ function switchToAsmsView() {
 
         async function loadCourses() {
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/courses/overview`);
+                const response = await fetch(`${API_BASE_URL}/courses/overview`);
                 if (!response.ok) throw new Error('Failed to fetch courses');
                 
                 const data = await response.json();
@@ -199,7 +199,7 @@ function switchToAsmsView() {
 
         async function loadCoursesList() {
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/courses`);
+                const response = await fetch(`${API_BASE_URL}/courses`);
                 if (!response.ok) throw new Error('Failed to fetch courses');
                 
                 const data = await response.json();
@@ -221,7 +221,7 @@ function switchToAsmsView() {
         async function showCoursesModal() {
             showLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/courses/overview`);
+                const response = await fetch(`${API_BASE_URL}/courses/overview`);
                 if (!response.ok) throw new Error('Failed to fetch courses');
                 
                 const data = await response.json();
@@ -278,7 +278,7 @@ function switchToAsmsView() {
 
         async function loadAsmsList() {
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/asms`);
+                const response = await fetch(`${API_BASE_URL}/asms`);
                 if (!response.ok) throw new Error('Failed to fetch ASMs');
                 
                 const data = await response.json();
@@ -299,7 +299,7 @@ function switchToAsmsView() {
 
         async function loadSummaryMetrics() {
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/dashboard-metrics`);
+                const response = await fetch(`${API_BASE_URL}/dashboard-metrics`);
                 if (!response.ok) throw new Error('Failed to fetch metrics');
                 
                 const data = await response.json();
@@ -343,7 +343,7 @@ function switchToAsmsView() {
 
         async function loadClusterPerformance() {
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/cluster-performance`);
+                const response = await fetch(`${API_BASE_URL}/cluster-performance`);
                 if (!response.ok) throw new Error('Failed to fetch cluster data');
                 
                 const data = await response.json();
@@ -373,7 +373,7 @@ function switchToAsmsView() {
         async function loadAsmsOverview() {
             showLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/asm-overview`);
+                const response = await fetch(`${API_BASE_URL}/asm-overview`);
                 if (!response.ok) throw new Error('Failed to fetch ASM overview');
                 
                 const data = await response.json();
@@ -407,7 +407,7 @@ function switchToAsmsView() {
         async function loadCoursesOverview() {
             showLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/courses/overview`);
+                const response = await fetch(`${API_BASE_URL}/courses/overview`);
                 if (!response.ok) throw new Error('Failed to fetch courses');
                 
                 const data = await response.json();
@@ -441,7 +441,7 @@ function switchToAsmsView() {
         async function loadAsmDetails(asmName) {
             showLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/userops/api/asm-dealers/${encodeURIComponent(asmName)}`);
+                const response = await fetch(`${API_BASE_URL}/asm-dealers/${encodeURIComponent(asmName)}`);
                 if (!response.ok) throw new Error('Failed to fetch ASM details');
                 
                 const data = await response.json();
@@ -1001,7 +1001,7 @@ function sortItems(items, sortBy, sortOrder) {
             try {
                 document.getElementById('modalClusterName').textContent = clusterName;
                 
-                const response = await fetch(`${API_BASE_URL}/userops/api/asm-performance/${encodeURIComponent(clusterName)}`);
+                const response = await fetch(`${API_BASE_URL}/asm-performance/${encodeURIComponent(clusterName)}`);
                 if (!response.ok) throw new Error('Failed to fetch cluster details');
                 
                 const data = await response.json();
@@ -1254,7 +1254,7 @@ data.dealers?.forEach(dealer => {
             try {
                 document.getElementById('modalAsmName').textContent = asmName;
                 
-                const response = await fetch(`${API_BASE_URL}/userops/api/asm-dealers/${encodeURIComponent(asmName)}`);
+                const response = await fetch(`${API_BASE_URL}/asm-dealers/${encodeURIComponent(asmName)}`);
                 if (!response.ok) throw new Error('Failed to fetch ASM details');
                 
                 const data = await response.json();
@@ -1357,8 +1357,8 @@ data.dealers?.forEach(dealer => {
                 
                 // Fetch course and learners data
                 const [courseRes, learnersRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/userops/api/courses/${courseId}`),
-                    fetch(`${API_BASE_URL}/userops/api/courses/${courseId}/learners`)
+                    fetch(`${API_BASE_URL}/courses/${courseId}`),
+                    fetch(`${API_BASE_URL}/courses/${courseId}/learners`)
                 ]);
 
                 // Process course data
@@ -1593,7 +1593,7 @@ async function performSearch(query) {
     searchResults.classList.add('show');
     
     try {
-        const response = await fetch(`${API_BASE_URL}/userops/api/search?query=${encodeURIComponent(query)}`);
+        const response = await fetch(`${API_BASE_URL}/search?query=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error('Search failed');
         
         const data = await response.json();
@@ -1639,7 +1639,7 @@ async function showUserDetails(userId) {
     searchInput.value = '';
     
     try {
-        const response = await fetch(`${API_BASE_URL}/userops/api/user-id/${userId}`);
+        const response = await fetch(`${API_BASE_URL}/user-id/${userId}`);
         if (!response.ok) throw new Error('Failed to fetch user details');
         
         const user = await response.json();
