@@ -1,10 +1,19 @@
 [project]
 name = "lms-report"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Reusable Django app package for Open edX UserOps progress reporting"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi[all]>=0.129.0",
-    "mysql-connector-python>=9.6.0",
+    "Django>=4.2,<5.3",
 ]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["userops_reports*"]
+
+[tool.setuptools.package-data]
+"userops_reports" = ["templates/**/*.html", "static/**/*"]

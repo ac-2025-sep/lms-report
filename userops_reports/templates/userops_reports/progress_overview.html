@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+    <title>Cluster, ASM & Course Performance Dashboard</title>
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Font: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Add SheetJS (xlsx) for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'userops_reports/css/dashboard.css' %}">
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Loading...
+        </div>
+    </div>
+
+    <!-- Cluster Modal -->
+    <div class="modal-overlay" id="clusterModal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-layer-group"></i>
+                    <span id="modalClusterName">Cluster Details</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('clusterModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-summary" id="modalSummary"></div>
+
+                <div class="modal-section">
+                    <h3>
+                        <i class="fas fa-user-tie"></i> 
+                        RSM-wise Distribution 
+                        <span>(Click RSM to expand | Click ASM for dealers)</span>
+                    </h3>
+                    <table class="modal-table">
+                        <thead id="modalRsmHeader"></thead>
+                        <tbody id="modalRsmTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ASM Modal -->
+    <div class="modal-overlay" id="asmModal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-user-tie"></i>
+                    <span id="modalAsmName">ASM Details</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('asmModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-summary" id="asmModalSummary"></div>
+
+                <div class="modal-section">
+                    <h3><i class="fas fa-layer-group"></i> Clusters under this ASM</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Cluster</th>
+                                <th>Dealers</th>
+                                <th>Assigned</th>
+                                <th>Completed</th>
+                                <th>In Progress</th>
+                                <th>Not Started</th>
+                                <th>Avg Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody id="asmModalClustersTable"></tbody>
+                    </table>
+                </div>
+
+                <div class="modal-section">
+                    <h3><i class="fas fa-users"></i> Dealers under this ASM</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Dealer Name</th>
+                                <th>ID</th>
+                                <th>Cluster</th>
+                                <th>Champion</th>
+                                <th>Mobile</th>
+                                <th>Courses</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody id="asmModalDealersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Course Modal - Only Learners Progress section -->
+    <div class="modal-overlay" id="courseModal">
+        <div class="modal-container">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f9b84a, #f39c12);">
+                <h2>
+                    <i class="fas fa-book-open"></i>
+                    <span id="modalCourseName">Course Details</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('courseModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-summary" id="courseModalSummary"></div>
+
+                <div class="modal-section">
+                    <h3><i class="fas fa-users"></i> Learners Progress</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Dealer Name</th>
+                                <th>Username</th>
+                                <th>Dealer ID</th>
+                                <th>Cluster</th>
+                                <th>ASM</th>
+                                <th>RSM</th>
+                                <th>Status</th>
+                                <th>Grade</th>
+                                <th>Letter Grade</th>
+                                <th>Passed Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="courseModalDealersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Details Modal -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal-container" style="max-width: 900px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #764ba2, #667eea);">
+                <h2>
+                    <i class="fas fa-user-circle"></i>
+                    <span id="modalUserName">User Details</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('userModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- User Info Summary -->
+                <div class="user-info-summary" id="userInfoSummary"></div>
+
+                <!-- Stats Cards -->
+                <div class="modal-summary" id="userStatsSummary"></div>
+
+                <!-- Courses Table -->
+                <div class="modal-section">
+                    <h3><i class="fas fa-book-open"></i> Enrolled Courses</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Course Name</th>
+                                <th>Status</th>
+                                <th>Grade</th>
+                                <th>Letter Grade</th>
+                                <th>Enrollment Date</th>
+                                <th>Certificate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userCoursesTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Courses List Modal -->
+    <div class="modal-overlay" id="coursesModal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-book-open"></i>
+                    <span>All Courses</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('coursesModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="search-box" id="courseSearch" placeholder="Search courses..." onkeyup="filterCourses()">
+                
+                <div class="modal-section">
+                    <h3><i class="fas fa-list"></i> Course List</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Course Name</th>
+                                <th>ID</th>
+                                <th>Total Enrollments</th>
+                                <th>Completed</th>
+                                <th>Completion Rate</th>
+                                <th>Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="coursesTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dealers Modal -->
+    <div class="modal-overlay" id="dealersModal">
+        <div class="modal-container">
+            <div class="modal-header" style="background: linear-gradient(135deg, #1e6bc7, #2a4a8a);">
+                <h2>
+                    <i class="fas fa-users"></i>
+                    <span id="dealersModalTitle">Dealers</span>
+                </h2>
+                <button class="modal-close" onclick="closeModal('dealersModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-summary" id="dealersModalSummary"></div>
+
+                <div class="modal-section">
+                    <h3><i class="fas fa-store"></i> Dealers List</h3>
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Dealer Name</th>
+                                <th>ID</th>
+                                <th>Champion</th>
+                                <th>Mobile</th>
+                                <th>Courses</th>
+                                <th>Completed</th>
+                                <th>In Progress</th>
+                                <th>Not Started</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dealersModalTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="header">
+            <div class="title">
+                <h1>
+                    <i class="fas fa-chart-line"></i>
+                    Cluster, ASM & Course Analytics
+                </h1>
+                <div class="sub">Champion Dealers Performance Dashboard</div>
+            </div>
+
+            <!-- Search Bar -->
+<div class="search-container">
+    <div class="search-wrapper">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" 
+               class="search-input" 
+               id="userSearch" 
+               placeholder="Search by username, dealer name or ID..." 
+               autocomplete="off">
+        <div class="search-results" id="searchResults"></div>
+    </div>
+</div>
+
+            <div class="controls">
+                <select id="viewSelect" class="view-select">
+                    <option value="clusters">Cluster View</option>
+                    <option value="asms">ASM View</option>
+                    <option value="courses" selected>Course View</option>
+                </select>
+                
+                <div class="asm-select-container" id="asmSelectContainer" style="display: none;">
+                    <select id="asmSelect" class="asm-select">
+                        <option value="">Select ASM...</option>
+                    </select>
+                </div>
+
+                <div class="course-select-container" id="courseSelectContainer">
+                    <select id="courseSelect" class="course-select">
+                        <option value="">Select Course...</option>
+                    </select>
+                </div>
+
+                <div class="view-toggle">
+                    <button class="view-toggle-btn active" onclick="setViewMode('card')" id="cardViewBtn">
+                        <i class="fas fa-th-large"></i> Card
+                    </button>
+                    <button class="view-toggle-btn" onclick="setViewMode('table')" id="tableViewBtn">
+                        <i class="fas fa-table"></i> Table
+                    </button>
+                </div>
+
+                <button class="refresh-btn" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="export-btn" onclick="exportToExcel()">
+                    <i class="fas fa-file-excel"></i> Export to Excel
+                </button>
+            </div>
+        </div>
+
+        <div id="errorMessage" class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="errorText"></span>
+        </div>
+
+        <button class="back-btn" id="backBtn" style="display: none;" onclick="backToMainView()">
+            <i class="fas fa-arrow-left"></i> Back
+        </button>
+
+        <!-- Summary Cards -->
+        <!-- Summary Cards - all look the same now -->
+<div class="summary-row">
+    <div class="summary-card" data-view="courses" onclick="switchToCoursesView()">
+        <div class="summary-title"><i class="fas fa-book-open"></i> Active Courses</div>
+        <div class="summary-value" id="activeCourses">0</div>
+    </div>
+    <div class="summary-card" data-view="clusters" onclick="switchToClustersView()">
+        <div class="summary-title">Clusters</div>
+        <div class="summary-value" id="totalClusters">0</div>
+    </div>
+    <div class="summary-card" data-view="asms" onclick="switchToAsmsView()">
+        <div class="summary-title">ASMs</div>
+        <div class="summary-value" id="totalAsms">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-title">Dealers</div>
+        <div class="summary-value" id="totalDealers">0</div>
+    </div>
+    <div class="summary-card" data-view="courses" onclick="switchToCoursesView()">
+        <div class="summary-title">Courses</div>
+        <div class="summary-value" id="totalCourses">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-title">Avg Progress</div>
+        <div class="summary-value" id="avgProgress">0%</div>
+    </div>
+</div>
+
+
+
+        <!-- Metrics Cards -->
+        <!-- <div class="metrics-row">
+            <div class="metric-card assigned">
+                <div class="metric-title"><i class="fas fa-tasks"></i> Assigned</div>
+                <div class="metric-value" id="assignedCount">0</div>
+            </div>
+            <div class="metric-card completed">
+                <div class="metric-title"><i class="fas fa-check-circle"></i> Completed</div>
+                <div class="metric-value" id="completedCount">0</div>
+            </div>
+            <div class="metric-card progress">
+                <div class="metric-title"><i class="fas fa-spinner"></i> In Progress</div>
+                <div class="metric-value" id="progressCount">0</div>
+            </div>
+            <div class="metric-card notstarted">
+                <div class="metric-title"><i class="fas fa-clock"></i> Not Started</div>
+                <div class="metric-value" id="notStartedCount">0</div>
+            </div>
+        </div> -->
+
+        <!-- Charts -->
+        <div class="charts-row">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-chart-bar"></i> <span id="chartTitle">Course Performance</span></h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-chart-pie"></i> Status Distribution</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section Title -->
+        <div class="section-title">
+            <i class="fas fa-book-open" id="gridIcon"></i>
+            <span id="gridTitleText">Courses</span>
+        </div>
+
+        <!-- Card View Grid -->
+        <div id="clustersGrid" class="clusters-grid"></div>
+
+        <!-- Table View Container -->
+        <div id="tableViewContainer" class="table-container" style="display: none;">
+            <table class="data-table">
+                <thead id="tableHeader"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-container" id="paginationContainer" style="display: none;">
+            <div class="pagination-info">
+                <span id="paginationStart">1</span>-<span id="paginationEnd">10</span> of <span id="paginationTotal">0</span>
+            </div>
+            <div class="pagination-controls">
+                <select class="rows-per-page" id="rowsPerPage" onchange="changeRowsPerPage()">
+                    <option value="10">10/page</option>
+                    <option value="25">25/page</option>
+                    <option value="50">50/page</option>
+                </select>
+                <button class="pagination-btn" onclick="goToPage(1)" id="firstPage" disabled>«</button>
+                <button class="pagination-btn" onclick="goToPage(currentPage - 1)" id="prevPage" disabled>‹</button>
+                <span id="pageNumbers"></span>
+                <button class="pagination-btn" onclick="goToPage(currentPage + 1)" id="nextPage">›</button>
+                <button class="pagination-btn" onclick="goToPage(totalPages)" id="lastPage">»</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <span><i class="far fa-clock"></i> <span id="lastUpdated">Just now</span></span>
+        </div>
+    </div>
+
+    <script src="{% static 'userops_reports/js/dashboard.js' %}"></script>
+</body>
+</html>
