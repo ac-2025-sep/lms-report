@@ -1,9 +1,9 @@
-from userops_reports.db import execute_query
+from userops_reports.db import fetch_all_dict
 
 
 def search_users(query):
     search_pattern = f"%{query}%"
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT u.id as user_id, u.username, u.email,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
@@ -31,7 +31,7 @@ def search_users(query):
 
 
 def get_user_details_by_username(username):
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT u.id as user_id, u.username, u.email, u.date_joined, u.is_active,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
@@ -59,7 +59,7 @@ def get_user_details_by_username(username):
 
 
 def get_user_details_by_id(user_id):
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT u.id as user_id, u.username, u.email, u.date_joined, u.is_active,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,

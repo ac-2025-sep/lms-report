@@ -1,4 +1,4 @@
-const API_BASE_URL = new URL('../api', `${window.location.origin}${window.location.pathname.replace(/\/?$/, '/')}`).pathname;
+const API_BASE_URL = `${window.location.pathname.replace(/\/progress_overview\/?$/, '')}/api`;
         let mainChart, statusChart;
         let currentView = 'courses';
         let currentViewMode = 'card';
@@ -1357,8 +1357,8 @@ data.dealers?.forEach(dealer => {
                 
                 // Fetch course and learners data
                 const [courseRes, learnersRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/courses/${courseId}`),
-                    fetch(`${API_BASE_URL}/courses/${courseId}/learners`)
+                    fetch(`${API_BASE_URL}/course/${courseId}`),
+                    fetch(`${API_BASE_URL}/course/${courseId}/learners`)
                 ]);
 
                 // Process course data
