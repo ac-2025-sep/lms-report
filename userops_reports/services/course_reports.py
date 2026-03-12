@@ -1,8 +1,8 @@
-from userops_reports.db import execute_query
+from userops_reports.db import fetch_all_dict
 
 
 def get_courses():
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT co.id as course_id, co.display_name as name
         FROM course_overviews_courseoverview co
         ORDER BY co.display_name
@@ -11,7 +11,7 @@ def get_courses():
 
 
 def get_courses_overview():
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT co.id AS course_id, co.display_name AS course_name,
             COUNT(DISTINCT sce.user_id) AS total_enrollments,
             COUNT(DISTINCT gc.id) AS certificates_issued,
@@ -41,7 +41,7 @@ def get_courses_overview():
 
 
 def get_course_details(course_id):
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT co.id AS course_id, co.display_name AS course_name,
             COUNT(DISTINCT sce.user_id) AS total_enrollments,
             COUNT(DISTINCT gc.id) AS certificates_issued,
@@ -71,7 +71,7 @@ def get_course_details(course_id):
 
 
 def get_course_learners(course_id):
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT u.id as user_id, u.username, u.email,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,

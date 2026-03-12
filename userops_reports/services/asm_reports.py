@@ -1,8 +1,8 @@
-from userops_reports.db import execute_query
+from userops_reports.db import fetch_all_dict
 
 
 def get_asms():
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.asm')) as asm
         FROM auth_userprofile
         WHERE meta IS NOT NULL AND meta != '' AND meta != 'null' AND JSON_VALID(meta) = 1
@@ -14,7 +14,7 @@ def get_asms():
 
 
 def get_rsms():
-    rows = execute_query("""
+    rows = fetch_all_dict("""
         SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.rsm')) as rsm
         FROM auth_userprofile
         WHERE meta IS NOT NULL AND meta != '' AND meta != 'null' AND JSON_VALID(meta) = 1
@@ -62,7 +62,7 @@ def get_asm_dealers(asm):
         GROUP BY u.id, u.username, u.email, u.date_joined, up.meta
         ORDER BY dealer_name
     """
-    rows = execute_query(query, (asm,))
+    rows = fetch_all_dict(query, (asm,))
     dealers = []
     cluster_map = {}
     for row in rows:

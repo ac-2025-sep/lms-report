@@ -1,4 +1,4 @@
-from userops_reports.db import execute_query
+from userops_reports.db import fetch_all_dict
 
 
 def get_clusters():
@@ -10,7 +10,7 @@ def get_clusters():
           AND JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.role')) = 'Champion'
         ORDER BY cluster
     """
-    rows = execute_query(query)
+    rows = fetch_all_dict(query)
     return {"clusters": [r["cluster"] for r in rows if r.get("cluster") and r.get("cluster") != "null"]}
 
 
@@ -40,7 +40,7 @@ def get_cluster_performance():
         GROUP BY JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster'))
         ORDER BY cluster
     """
-    rows = execute_query(query)
+    rows = fetch_all_dict(query)
     totals = {"assigned_courses": 0, "completed_courses": 0, "in_progress": 0, "not_started": 0, "total_users": 0, "avg_progress": 0}
     weighted = 0
     for r in rows:
@@ -94,7 +94,7 @@ def get_asm_performance(cluster):
         GROUP BY u.id, u.username, u.email, u.date_joined, up.meta
         ORDER BY dealer_name
     """
-    rows = execute_query(query, (cluster,))
+    rows = fetch_all_dict(query, (cluster,))
     dealers = []
     progress = 0
     for row in rows:
