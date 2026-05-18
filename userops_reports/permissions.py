@@ -1,7 +1,8 @@
 from functools import wraps
 
-from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.conf import settings
+from django.contrib.auth.views import redirect_to_login
+from django.http import HttpResponseForbidden, JsonResponse
 
 
 def _is_staff(user):
@@ -11,8 +12,10 @@ def _is_staff(user):
 def staff_required_view(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect_to_login(request.get_full_path(), login_url=getattr(settings, "LOGIN_URL", None))
         if not _is_staff(request.user):
-            return redirect("/")
+            return HttpResponseForbidden("You do not have permission to access reports.")
         return view_func(request, *args, **kwargs)
 
     return _wrapped

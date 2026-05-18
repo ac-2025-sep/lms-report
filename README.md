@@ -1,102 +1,104 @@
 # lms-report
 
-`lms-report` is a **reusable Django app package** for Open edX LMS UserOps reporting.
+`lms-report` is an Open edX/Tutor plugin package for the UserOps LMS report dashboard.
 
-It is no longer a standalone FastAPI runtime.
+It replaces the external FastAPI report URL with an internal LMS page:
 
-## What this package provides
+- Report UI: `/userops/progress_overview`
+- Report APIs: `/userops/api/...`
 
-- Dashboard page for progress overview.
-- Staff-only JSON API endpoints used by the dashboard.
-- App-scoped templates and static assets ready for Django packaging.
-- SQL report services executed through Django DB connection.
+## Architecture
 
-## Intended LMS routes
+The previous standalone workspace at `/home/ubuntu/lms_report` is a FastAPI/Jinja app. Its current report UI is served from `/lmsreport/reportui6`, using `asm_dashboard06uifix_sfl_lms.html` and API logic in `router6forsfl.py`.
 
-When included under `userops/`:
+This repository keeps that behavior inside Open edX as:
 
-- `/userops/progress_overview`
-- `/userops/api/...`
+- `userops_reports`: Django app installed into the LMS runtime.
+- `userops_reports.urls`: internal LMS URL/API routes mounted at `/userops/`.
+- `userops_reports.services`: SQL report services using `django.db.connection`.
+- `userops_reports/templates` and `userops_reports/static`: packaged dashboard UI assets.
+- `lms_report_tutor`: Tutor plugin entrypoint and Tutor/MFE patches.
 
-## Package/app structure
-
-```text
-userops_reports/
-  __init__.py
-  apps.py
-  urls.py
-  views.py
-  permissions.py
-  db.py
-  services/
-    cluster_reports.py
-    asm_reports.py
-    course_reports.py
-    user_reports.py
-  templates/
-    userops_reports/
-      progress_overview.html
-  static/
-    userops_reports/
-      css/dashboard.css
-      js/dashboard.js
-```
-
-## Integration in Open edX LMS
-
-1. Install this package into the LMS Python environment.
-2. Add `userops_reports` to `INSTALLED_APPS`.
-3. Include URLs under `userops/`:
-
-```python
-from django.urls import include, path
-
-urlpatterns += [
-    path("userops/", include("userops_reports.urls")),
-]
-```
-
-See `integration_notes.md` for detailed integration guidance and plugin wiring notes.
-
-## Static assets
-
-Dashboard assets are located in app static paths:
-
-- `userops_reports/static/userops_reports/js/dashboard.js`
-- `userops_reports/static/userops_reports/css/dashboard.css`
-
-Templates reference these assets with `{% static %}` tags.
-
-If you see static 404s, validate staticfiles collection/serving in LMS. This is independent from `/userops/` URL ownership.
-
-## Database access
-
-Database access is Django-native:
-
-- `userops_reports/db.py` uses `django.db.connection`.
-- Shared helpers:
-  - `fetch_all_dict(sql, params=None)`
-  - `fetch_one_dict(sql, params=None)`
-
-No standalone DB credentials are managed by this package.
+The legacy FastAPI files in this repository are retained only as historical reference/deprecation stubs.
 
 ## Permissions
 
-UI and APIs are guarded by staff checks (`request.user.is_staff`) in `userops_reports/permissions.py`.
+- Anonymous users are redirected to LMS login before viewing the report page.
+- Authenticated non-staff users are blocked.
+- Staff/admin users can access the report UI and APIs.
+- API endpoints return JSON `403` for unauthorized users.
 
-## Legacy FastAPI files
+The initial policy is intentionally staff-only via `request.user.is_staff`.
 
-Historical FastAPI files remain only as explicit deprecation stubs:
+## Report Logic
 
-- `main.py`
-- `report_router.py`
-- `router4.py`
-- `router5.py`
+The Django services mirror the current `/reportui6` backend behavior from `router6forsfl.py`:
 
-They are not part of the Django runtime.
+- Progress and completion are primarily calculated from `grades_persistentcoursegrade.percent_grade`.
+- Completed: `percent_grade >= 1.0`.
+- In progress: `0 < percent_grade < 1.0`.
+- Not started: missing or zero grade.
+- Course learner details include grade, letter grade, completion status, enrollment dates, module counts, and dealer hierarchy metadata.
+- User details include dealer metadata, course summary counts, and enrolled course rows for the user modal.
 
-## Schema assumptions / caveats
+The report SQL assumes standard Open edX LMS tables plus UserOps hierarchy data in `auth_userprofile.meta` JSON fields such as `cluster`, `asm`, `rsm`, `dealer_name`, `dealer_id`, `champion_name`, `brand`, `role`, and `department`.
 
-Current report SQL assumes Open edX LMS tables and `auth_userprofile.meta` JSON fields for UserOps hierarchy data (`cluster`, `asm`, `rsm`, dealer/champion metadata).
+## Install and Enable
 
-If your deployment schema/custom fields differ, adjust SQL in `userops_reports/services/*.py`.
+You will run these from the Tutor host.
+
+```bash
+pip install -e /home/ubuntu/edxtutor/lms-report
+tutor plugins enable lms-report
+tutor config save
+tutor images build openedx
+tutor local restart lms cms
+```
+
+For a fresh environment, use your normal `tutor local launch` flow after enabling the plugin.
+
+Important: the Tutor Dockerfile patch installs this package into the Open edX image from:
+
+```text
+git+https://github.com/ac-2025-sep/lms-report.git
+```
+
+Push the desired commit before rebuilding the openedx image, or adjust `lms_report_tutor/plugin.py` to point at your deployment branch/tag.
+
+## Disable
+
+```bash
+tutor plugins disable lms-report
+tutor config save
+tutor local restart lms cms
+```
+
+## Verification Checklist
+
+- LMS starts successfully after enabling the plugin.
+- `/userops/progress_overview` opens for staff/admin users.
+- Logged-out users are redirected through LMS login.
+- Normal learners cannot access the report page.
+- Normal learners receive JSON `403` from `/userops/api/...`.
+- These staff API calls return dashboard-compatible payloads:
+  - `/userops/api/dashboard-metrics`
+  - `/userops/api/courses/overview`
+  - `/userops/api/course/<course_id>`
+  - `/userops/api/course/<course_id>/learners`
+  - `/userops/api/search?query=<term>`
+  - `/userops/api/user-id/<user_id>`
+- The Studio header “Report Dashboard” button opens `/userops/progress_overview`, not `https://demodms.staqo.com/lmsreport/reportui6`.
+- After the internal page is validated, the old external report link can be removed from any remaining custom Tutor/MFE plugins.
+
+## Local Static Checks
+
+```bash
+python3 -m compileall userops_reports lms_report_tutor
+node --check userops_reports/static/userops_reports/js/dashboard.js
+python3 - <<'PY'
+import tomllib
+with open("pyproject.toml", "rb") as f:
+    data = tomllib.load(f)
+print(data["project"]["entry-points"]["tutor.plugin.v1"])
+PY
+```

@@ -26,6 +26,14 @@ def _safe_json(handler):
         return JsonResponse({"detail": "Unable to load report data."}, status=500)
 
 
+def _date_kwargs(request):
+    return {
+        "date_range": request.GET.get("date_range", "all"),
+        "start_date": request.GET.get("start_date"),
+        "end_date": request.GET.get("end_date"),
+    }
+
+
 @require_GET
 @staff_required_view
 def progress_overview(request):
@@ -41,7 +49,7 @@ def api_clusters(request):
 @require_GET
 @staff_required_api
 def api_cluster_performance(request):
-    return _safe_json(get_cluster_performance)
+    return _safe_json(lambda: get_cluster_performance(**_date_kwargs(request)))
 
 
 @require_GET
@@ -53,25 +61,25 @@ def api_asms(request):
 @require_GET
 @staff_required_api
 def api_rsms(request):
-    return _safe_json(get_rsms)
+    return _safe_json(lambda: get_rsms(**_date_kwargs(request)))
 
 
 @require_GET
 @staff_required_api
 def api_asm_performance(request, cluster):
-    return _safe_json(lambda: get_asm_performance(cluster))
+    return _safe_json(lambda: get_asm_performance(cluster, **_date_kwargs(request)))
 
 
 @require_GET
 @staff_required_api
 def api_asm_dealers(request, asm):
-    return _safe_json(lambda: get_asm_dealers(asm))
+    return _safe_json(lambda: get_asm_dealers(asm, **_date_kwargs(request)))
 
 
 @require_GET
 @staff_required_api
 def api_asm_overview(request):
-    return _safe_json(lambda: {"asms": get_asm_overview()})
+    return _safe_json(lambda: {"asms": get_asm_overview(**_date_kwargs(request))})
 
 
 @require_GET
@@ -83,14 +91,14 @@ def api_courses(request):
 @require_GET
 @staff_required_api
 def api_courses_overview(request):
-    return _safe_json(get_courses_overview)
+    return _safe_json(lambda: get_courses_overview(**_date_kwargs(request)))
 
 
 @require_GET
 @staff_required_api
 def api_course(request, course_id):
     def _handler():
-        payload = get_course_details(course_id)
+        payload = get_course_details(course_id, **_date_kwargs(request))
         if payload is None:
             return {"detail": "Course not found"}
         return payload
@@ -104,7 +112,7 @@ def api_course(request, course_id):
 @require_GET
 @staff_required_api
 def api_course_learners(request, course_id):
-    return _safe_json(lambda: get_course_learners(course_id))
+    return _safe_json(lambda: get_course_learners(course_id, **_date_kwargs(request)))
 
 
 @require_GET
@@ -150,7 +158,7 @@ def api_user_by_id(request, user_id):
 @staff_required_api
 def api_dashboard_metrics(request):
     def _handler():
-        cp = get_cluster_performance()
+        cp = get_cluster_performance(**_date_kwargs(request))
         asms = get_asms().get("asms", [])
         totals = cp.get("totals", {})
         return {

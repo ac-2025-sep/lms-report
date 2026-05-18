@@ -8,6 +8,9 @@ dependencies = [
     "Django>=4.2,<5.3",
 ]
 
+[project.entry-points."tutor.plugin.v1"]
+lms-report = "lms_report_tutor.plugin"
+
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -16,7 +19,7 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["userops_reports*"]
+include = ["userops_reports*", "lms_report_tutor*"]
 
 [tool.setuptools.package-data]
 "userops_reports" = ["templates/**/*.html", "static/**/*"]

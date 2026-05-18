@@ -1,4 +1,5 @@
-from userops_reports.db import fetch_all_dict
+from userops_reports.db import fetch_all_dict, fetch_one_dict
+from userops_reports.services.common import as_float, as_int, date_filter_clause, iso
 
 
 def get_courses():
@@ -10,39 +11,15 @@ def get_courses():
     return {"courses": [{"id": r["course_id"], "name": r["name"], "display_name": r["name"]} for r in rows]}
 
 
-def get_courses_overview():
-    rows = fetch_all_dict("""
-        SELECT co.id AS course_id, co.display_name AS course_name,
-            COUNT(DISTINCT sce.user_id) AS total_enrollments,
-            COUNT(DISTINCT gc.id) AS certificates_issued,
-            COUNT(DISTINCT CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN sce.user_id END) AS passed_count,
-            COALESCE(ROUND(AVG(COALESCE(gpcg.percent_grade, 0)) * 100, 2), 0) AS avg_grade,
-            MAX(gpcg.modified) AS last_activity
-        FROM course_overviews_courseoverview co
-        LEFT JOIN student_courseenrollment sce ON co.id = sce.course_id AND sce.is_active = 1
-        LEFT JOIN auth_userprofile up ON sce.user_id = up.user_id
-        LEFT JOIN certificates_generatedcertificate gc ON sce.user_id = gc.user_id AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
-        LEFT JOIN grades_persistentcoursegrade gpcg ON sce.course_id = gpcg.course_id AND sce.user_id = gpcg.user_id
-        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
-        GROUP BY co.id, co.display_name
-        ORDER BY co.display_name
-    """)
-    courses = []
-    for row in rows:
-        courses.append({
-            "course_id": row["course_id"], "course_name": row["course_name"],
-            "total_enrollments": int(row.get("total_enrollments") or 0),
-            "certificates_issued": int(row.get("certificates_issued") or 0),
-            "active_learners": int(row.get("passed_count") or 0),
-            "avg_completion": float(row.get("avg_grade") or 0),
-            "last_activity": row["last_activity"].isoformat() if row.get("last_activity") else None,
-        })
-    return {"courses": courses}
-
-
-def get_course_details(course_id):
-    rows = fetch_all_dict("""
-        SELECT co.id AS course_id, co.display_name AS course_name,
+def get_courses_overview(date_range="all", start_date=None, end_date=None):
+    date_clause, params = date_filter_clause("sce.created", date_range, start_date, end_date)
+    rows = fetch_all_dict(f"""
+        SELECT
+            co.id AS course_id,
+            co.display_name AS course_name,
+            co.start,
+            co.end,
+            co.org,
             COUNT(DISTINCT sce.user_id) AS total_enrollments,
             COUNT(DISTINCT gc.id) AS certificates_issued,
             COUNT(DISTINCT CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN sce.user_id END) AS passed_count,
@@ -50,42 +27,191 @@ def get_course_details(course_id):
             COALESCE(ROUND(AVG(COALESCE(gpcg.percent_grade, 0)) * 100, 2), 0) AS avg_grade,
             MAX(gpcg.modified) AS last_activity
         FROM course_overviews_courseoverview co
-        LEFT JOIN student_courseenrollment sce ON co.id = sce.course_id AND sce.is_active = 1
-        LEFT JOIN certificates_generatedcertificate gc ON sce.user_id = gc.user_id AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
-        LEFT JOIN grades_persistentcoursegrade gpcg ON sce.course_id = gpcg.course_id AND sce.user_id = gpcg.user_id
-        WHERE co.id = %s
-        GROUP BY co.id, co.display_name
+        LEFT JOIN student_courseenrollment sce ON co.id = sce.course_id AND sce.is_active = 1{date_clause}
+        LEFT JOIN auth_userprofile up ON sce.user_id = up.user_id
+        LEFT JOIN certificates_generatedcertificate gc ON sce.user_id = gc.user_id
+            AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
+        LEFT JOIN grades_persistentcoursegrade gpcg ON sce.course_id = gpcg.course_id
+            AND sce.user_id = gpcg.user_id
+        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+        GROUP BY co.id, co.display_name, co.start, co.end, co.org
+        ORDER BY co.display_name
+    """, tuple(params))
+    courses = []
+    for row in rows:
+        avg_grade = as_float(row.get("avg_grade"))
+        courses.append({
+            "course_id": row["course_id"],
+            "course_name": row["course_name"],
+            "total_enrollments": as_int(row.get("total_enrollments")),
+            "certificates_issued": as_int(row.get("certificates_issued")),
+            "active_learners": as_int(row.get("passed_count")),
+            "passed_count": as_int(row.get("passed_count")),
+            "in_progress_count": as_int(row.get("in_progress_count")),
+            "avg_grade": avg_grade,
+            "avg_completion": avg_grade,
+            "last_activity": iso(row.get("last_activity")),
+        })
+    return {"courses": courses}
+
+
+def get_course_details(course_id, date_range="all", start_date=None, end_date=None):
+    course = fetch_one_dict("""
+        SELECT id AS course_id, display_name AS course_name, start, end, org, modified
+        FROM course_overviews_courseoverview
+        WHERE id = %s
     """, (course_id,))
-    if not rows:
+    if not course:
         return None
-    row = rows[0]
+
+    date_clause, date_params = date_filter_clause("sce.created", date_range, start_date, end_date)
+    stats = fetch_one_dict(f"""
+        SELECT
+            COUNT(DISTINCT sce.user_id) AS total_enrollments,
+            COUNT(DISTINCT gc.id) AS certificates_issued,
+            COUNT(DISTINCT CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN sce.user_id END) AS passed_count,
+            COUNT(DISTINCT CASE WHEN gpcg.percent_grade > 0 AND gpcg.passed_timestamp IS NULL THEN sce.user_id END) AS in_progress_count,
+            COUNT(DISTINCT CASE
+                WHEN gpcg.passed_timestamp IS NULL
+                  AND (gpcg.percent_grade IS NULL OR gpcg.percent_grade = 0)
+                  AND sm.student_id IS NOT NULL
+                THEN sce.user_id END) AS started_count,
+            COUNT(DISTINCT CASE
+                WHEN gpcg.passed_timestamp IS NULL
+                  AND (gpcg.percent_grade IS NULL OR gpcg.percent_grade = 0)
+                  AND sm.student_id IS NULL
+                THEN sce.user_id END) AS not_started_count,
+            COALESCE(ROUND(AVG(COALESCE(gpcg.percent_grade, 0)) * 100, 2), 0) AS avg_grade,
+            MAX(gpcg.modified) AS last_activity
+        FROM student_courseenrollment sce
+        LEFT JOIN auth_userprofile up ON sce.user_id = up.user_id
+        LEFT JOIN certificates_generatedcertificate gc ON sce.user_id = gc.user_id
+            AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
+        LEFT JOIN grades_persistentcoursegrade gpcg ON sce.course_id = gpcg.course_id
+            AND sce.user_id = gpcg.user_id
+        LEFT JOIN (
+            SELECT DISTINCT student_id, course_id
+            FROM courseware_studentmodule
+        ) sm ON sce.user_id = sm.student_id AND sce.course_id = sm.course_id
+        WHERE sce.course_id = %s AND sce.is_active = 1{date_clause}
+          AND up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+    """, tuple([course_id] + date_params)) or {}
+
+    passed = as_int(stats.get("passed_count"))
+    in_progress = as_int(stats.get("in_progress_count"))
+    started = as_int(stats.get("started_count"))
+    if passed:
+        completion_status = "completed"
+    elif in_progress:
+        completion_status = "in_progress"
+    elif started:
+        completion_status = "started"
+    else:
+        completion_status = "not_started"
+
+    avg_grade = as_float(stats.get("avg_grade"))
     return {
-        "course_id": row["course_id"], "course_name": row["course_name"],
-        "total_enrollments": int(row.get("total_enrollments") or 0),
-        "certificates_issued": int(row.get("certificates_issued") or 0),
-        "passed_count": int(row.get("passed_count") or 0),
-        "in_progress_count": int(row.get("in_progress_count") or 0),
-        "avg_completion": float(row.get("avg_grade") or 0),
-        "last_activity": row["last_activity"].isoformat() if row.get("last_activity") else None,
+        "course_id": course["course_id"],
+        "course_name": course.get("course_name") or course["course_id"],
+        "start_date": iso(course.get("start")),
+        "end_date": iso(course.get("end")),
+        "org": course.get("org"),
+        "total_enrollments": as_int(stats.get("total_enrollments")),
+        "certificates_issued": as_int(stats.get("certificates_issued")),
+        "passed_count": passed,
+        "in_progress_count": in_progress,
+        "started_count": started,
+        "not_started_count": as_int(stats.get("not_started_count")),
+        "avg_grade": avg_grade,
+        "avg_completion": avg_grade,
+        "last_activity": iso(stats.get("last_activity")),
+        "completion_status": completion_status,
     }
 
 
-def get_course_learners(course_id):
-    rows = fetch_all_dict("""
-        SELECT u.id as user_id, u.username, u.email,
+def get_course_learners(course_id, date_range="all", start_date=None, end_date=None):
+    date_clause, date_params = date_filter_clause("sce.created", date_range, start_date, end_date)
+    rows = fetch_all_dict(f"""
+        SELECT
+            sce.course_id,
+            au.id AS user_id,
+            au.username,
+            au.email,
+            COALESCE(
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.name')), ''),
+                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')), ''),
+                au.username
+            ) as name,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.city')) as city,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.state')) as state,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_category')) as dealer_category,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,
             JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) as asm,
-            ROUND(gpcg.percent_grade * 100, 1) as grade,
-            CASE WHEN gc.id IS NOT NULL THEN 'completed'
-                 WHEN gpcg.percent_grade > 0 THEN 'in_progress'
-                 ELSE 'not_started' END as status
-        FROM student_courseenrollment sce
-        JOIN auth_user u ON sce.user_id = u.id
-        JOIN auth_userprofile up ON u.id = up.user_id
-        LEFT JOIN certificates_generatedcertificate gc ON sce.user_id = gc.user_id AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
-        LEFT JOIN grades_persistentcoursegrade gpcg ON sce.course_id = gpcg.course_id AND sce.user_id = gpcg.user_id
-        WHERE sce.course_id = %s AND sce.is_active = 1
-        ORDER BY u.username
-    """, (course_id,))
-    return {"learners": rows}
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) as rsm,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.role')) as role,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.department')) as department,
+            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.brand')) as brand,
+            ROUND(gpcg.percent_grade * 100, 2) AS percent_grade,
+            gpcg.letter_grade,
+            CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN 'Passed' ELSE 'Not Passed' END AS completion_status,
+            gpcg.passed_timestamp,
+            gpcg.modified AS grade_last_updated,
+            sce.mode as enrollment_mode,
+            sce.created as enrollment_date,
+            COUNT(DISTINCT CASE WHEN sm.state LIKE '%complete%' OR sm.state LIKE '%done%' OR sm.grade > 0 THEN sm.id END) AS completed_modules,
+            COUNT(DISTINCT CASE WHEN sm.id IS NOT NULL
+                AND (sm.state NOT LIKE '%complete%' AND sm.state NOT LIKE '%done%' AND (sm.grade IS NULL OR sm.grade = 0))
+                THEN sm.id END) AS in_progress_modules,
+            COUNT(DISTINCT sm.id) AS total_modules_attempted
+        FROM student_courseenrollment AS sce
+        JOIN auth_user AS au ON au.id = sce.user_id
+        JOIN auth_userprofile AS up ON au.id = up.user_id
+        LEFT JOIN grades_persistentcoursegrade AS gpcg ON gpcg.course_id = sce.course_id
+            AND gpcg.user_id = sce.user_id
+        LEFT JOIN courseware_studentmodule AS sm ON sm.student_id = sce.user_id
+            AND sm.course_id = sce.course_id
+        WHERE sce.course_id = %s AND sce.is_active = 1{date_clause}
+          AND up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+        GROUP BY sce.course_id, au.id, au.username, au.email, up.meta, gpcg.percent_grade,
+            gpcg.letter_grade, gpcg.passed_timestamp, gpcg.modified, sce.mode, sce.created
+        ORDER BY
+            CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN 1 WHEN gpcg.percent_grade > 0 THEN 2 ELSE 3 END,
+            gpcg.percent_grade DESC
+    """, tuple([course_id] + date_params))
+    learners = []
+    for row in rows:
+        percent_grade = as_float(row.get("percent_grade"))
+        completed_modules = as_int(row.get("completed_modules"))
+        status = "completed" if row.get("completion_status") == "Passed" else "in_progress" if completed_modules > 0 or percent_grade > 0 else "not_started"
+        learners.append({
+            "user_id": row["user_id"],
+            "username": row["username"],
+            "email": row["email"],
+            "name": row.get("name") or row["username"],
+            "dealer_name": row.get("dealer_name") or row["username"],
+            "dealer_id": row.get("dealer_id") or "N/A",
+            "city": row.get("city") or "N/A",
+            "state": row.get("state") or "N/A",
+            "dealer_category": row.get("dealer_category") or "N/A",
+            "cluster": row.get("cluster") or "Unassigned",
+            "asm": row.get("asm") or "Unassigned",
+            "rsm": row.get("rsm") or "Unassigned",
+            "role": row.get("role") or "Champion",
+            "department": row.get("department") or "N/A",
+            "brand": row.get("brand") or "N/A",
+            "percent_grade": percent_grade,
+            "grade": percent_grade,
+            "letter_grade": row.get("letter_grade") or "N/A",
+            "completion_status": row.get("completion_status") or "Not Passed",
+            "passed_timestamp": iso(row.get("passed_timestamp")),
+            "grade_last_updated": iso(row.get("grade_last_updated")),
+            "enrollment_mode": row.get("enrollment_mode"),
+            "enrollment_date": iso(row.get("enrollment_date")),
+            "completed_modules": completed_modules,
+            "in_progress_modules": as_int(row.get("in_progress_modules")),
+            "total_modules": as_int(row.get("total_modules_attempted")),
+            "status": status,
+        })
+    return {"learners": learners}
