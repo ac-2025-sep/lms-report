@@ -24,6 +24,8 @@ DASHBOARD_ASSETS = {
     "js": ("static/userops_reports/js/dashboard.js", "application/javascript"),
     "test_css": ("static/userops_reports/css/report_test.css", "text/css"),
     "test_js": ("static/userops_reports/js/report_test.js", "application/javascript"),
+    "intelligence_css": ("static/userops_reports/css/intelligence_dashboard.css", "text/css"),
+    "intelligence_js": ("static/userops_reports/js/intelligence_dashboard.js", "application/javascript"),
 }
 
 
@@ -52,6 +54,12 @@ def progress_overview(request):
 @staff_required_view
 def progress_overview_test(request):
     return render(request, "userops_reports/progress_overview_test.html")
+
+
+@require_GET
+@staff_required_view
+def progress_overview_test_1(request):
+    return render(request, "userops_reports/progress_overview_test_1.html")
 
 
 def _dashboard_asset_response(asset_key):
@@ -93,6 +101,18 @@ def report_test_css(request):
 @staff_required_view
 def report_test_js(request):
     return _dashboard_asset_response("test_js")
+
+
+@require_GET
+@staff_required_view
+def intelligence_dashboard_css(request):
+    return _dashboard_asset_response("intelligence_css")
+
+
+@require_GET
+@staff_required_view
+def intelligence_dashboard_js(request):
+    return _dashboard_asset_response("intelligence_js")
 
 
 @require_GET

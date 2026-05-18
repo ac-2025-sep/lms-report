@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learning Intelligence Dashboard</title>
+    <link rel="stylesheet" href="/userops/assets/intelligence-dashboard.css">
+    <script defer src="/userops/assets/intelligence-dashboard.js"></script>
+</head>
+<body>
+    <div class="intelligence-shell">
+        <header class="command-header">
+            <div class="command-copy">
+                <div class="eyebrow">Sleepwell Open edX Analytics</div>
+                <h1>Learning Intelligence Dashboard</h1>
+                <p id="scopeSummary">All courses across all available reporting history.</p>
+            </div>
+            <div class="command-controls" aria-label="Dashboard controls">
+                <label class="control">
+                    <span>Date range</span>
+                    <select id="dateRange">
+                        <option value="all">All time</option>
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="this_week">This week</option>
+                        <option value="last_week">Last week</option>
+                        <option value="this_month">This month</option>
+                        <option value="last_month">Last month</option>
+                        <option value="last_3_months">Last 3 months</option>
+                        <option value="last_6_months">Last 6 months</option>
+                        <option value="this_year">This year</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+                <label class="control custom-date is-hidden">
+                    <span>Start</span>
+                    <input id="startDate" type="date">
+                </label>
+                <label class="control custom-date is-hidden">
+                    <span>End</span>
+                    <input id="endDate" type="date">
+                </label>
+                <label class="control course-control">
+                    <span>Course</span>
+                    <select id="courseSelect">
+                        <option value="">All courses</option>
+                    </select>
+                </label>
+                <button id="themeToggle" class="button ghost" type="button">Theme</button>
+                <button id="refreshBtn" class="button primary" type="button">Refresh</button>
+                <button id="exportBtn" class="button" type="button">Export</button>
+            </div>
+        </header>
+
+        <section id="noticeRegion" class="notice-region" aria-live="polite"></section>
+
+        <section class="kpi-grid" aria-label="Executive snapshot">
+            <article class="kpi-card accent-blue is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">TL</span>
+                    <span>Total learners</span>
+                </div>
+                <strong id="kpiTotalLearners">0</strong>
+                <small id="kpiTotalLearnersTrend">Current scope</small>
+            </article>
+            <article class="kpi-card accent-green is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">AL</span>
+                    <span>Active learners</span>
+                </div>
+                <strong id="kpiActiveLearners">0</strong>
+                <small id="kpiActiveLearnersTrend">Started or completed</small>
+            </article>
+            <article class="kpi-card accent-teal is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">AP</span>
+                    <span>Average progress</span>
+                </div>
+                <strong id="kpiAvgProgress">0%</strong>
+                <small id="kpiAvgProgressTrend">Across enrollments</small>
+            </article>
+            <article class="kpi-card accent-purple is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">CR</span>
+                    <span>Completion rate</span>
+                </div>
+                <strong id="kpiCompletionRate">0%</strong>
+                <small id="kpiCompletionRateTrend">Passed learners</small>
+            </article>
+            <article class="kpi-card accent-gold is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">CE</span>
+                    <span>Certificates earned</span>
+                </div>
+                <strong id="kpiCertificates">0</strong>
+                <small id="kpiCertificatesTrend">Downloadable certificates</small>
+            </article>
+            <article class="kpi-card accent-red is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">RR</span>
+                    <span>At-risk learners</span>
+                </div>
+                <strong id="kpiRiskLearners">0</strong>
+                <small id="kpiRiskLearnersTrend">High and medium risk</small>
+            </article>
+            <article class="kpi-card accent-cyan is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">TS</span>
+                    <span>Avg. time spent</span>
+                </div>
+                <strong id="kpiTimeSpent">0h</strong>
+                <small>Estimated from progress</small>
+            </article>
+            <article class="kpi-card accent-slate is-loading">
+                <div class="kpi-top">
+                    <span class="metric-icon">DO</span>
+                    <span>Drop-off</span>
+                </div>
+                <strong id="kpiDropOff">0%</strong>
+                <small id="kpiDropOffTrend">Not started or stalled</small>
+            </article>
+        </section>
+
+        <main class="dashboard-grid">
+            <section class="panel health-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Course Health Index</span>
+                        <h2>Learning system pulse</h2>
+                    </div>
+                    <span id="healthLabel" class="state-pill">Calculating</span>
+                </div>
+                <div class="health-layout">
+                    <div id="healthGauge" class="health-gauge">
+                        <div>
+                            <strong id="healthScore">0</strong>
+                            <span>/100</span>
+                        </div>
+                    </div>
+                    <div class="health-metrics">
+                        <div>
+                            <span>Completion health</span>
+                            <div class="meter"><i id="healthCompletion"></i></div>
+                        </div>
+                        <div>
+                            <span>Engagement health</span>
+                            <div class="meter"><i id="healthEngagement"></i></div>
+                        </div>
+                        <div>
+                            <span>Activity health</span>
+                            <div class="meter"><i id="healthActivity"></i></div>
+                        </div>
+                        <div>
+                            <span>Drop-off pressure</span>
+                            <div class="meter danger"><i id="healthDropoff"></i></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="problemSections" class="problem-list"></div>
+            </section>
+
+            <section class="panel insights-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Smart Insights</span>
+                        <h2>Signals worth acting on</h2>
+                    </div>
+                </div>
+                <div id="insightsList" class="insights-list"></div>
+            </section>
+
+            <section class="panel chart-panel wide-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Progress Intelligence</span>
+                        <h2>Course-wise completion</h2>
+                    </div>
+                </div>
+                <div id="courseCompletionChart" class="horizontal-chart"></div>
+            </section>
+
+            <section class="panel chart-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Engagement Pulse</span>
+                        <h2>Weekly active trend</h2>
+                    </div>
+                    <span class="estimate-tag">Estimated</span>
+                </div>
+                <canvas id="engagementCanvas" width="620" height="260" aria-label="Weekly active learner trend"></canvas>
+            </section>
+
+            <section class="panel chart-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Completion Funnel</span>
+                        <h2>Learner journey</h2>
+                    </div>
+                </div>
+                <div id="funnelChart" class="funnel-chart"></div>
+            </section>
+
+            <section class="panel chart-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Progress Distribution</span>
+                        <h2>Where learners sit</h2>
+                    </div>
+                </div>
+                <div id="distributionChart" class="distribution-chart"></div>
+            </section>
+
+            <section class="panel chart-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Activity Heatmap</span>
+                        <h2>Learner momentum</h2>
+                    </div>
+                    <span class="estimate-tag">Estimated</span>
+                </div>
+                <div id="heatmapGrid" class="heatmap-grid"></div>
+            </section>
+
+            <section class="panel chart-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Module Drop-off</span>
+                        <h2>Friction points</h2>
+                    </div>
+                    <span class="estimate-tag">Estimated</span>
+                </div>
+                <div id="dropoffChart" class="dropoff-chart"></div>
+            </section>
+
+            <section class="panel risk-panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="panel-kicker">Learner Risk Radar</span>
+                        <h2>Intervention queue</h2>
+                    </div>
+                    <button id="riskExportBtn" class="mini-button" type="button">Export risks</button>
+                </div>
+                <div id="riskList" class="risk-list"></div>
+            </section>
+
+            <section class="panel table-panel full-panel">
+                <div class="panel-header table-heading">
+                    <div>
+                        <span class="panel-kicker">Deep Dive</span>
+                        <h2>Learner intelligence table</h2>
+                    </div>
+                    <div class="table-tools">
+                        <input id="tableSearch" type="search" placeholder="Search learner, email, course, cluster">
+                        <select id="statusFilter">
+                            <option value="">All statuses</option>
+                            <option value="completed">Completed</option>
+                            <option value="in_progress">In progress</option>
+                            <option value="not_started">Not started</option>
+                        </select>
+                        <select id="riskFilter">
+                            <option value="">All risks</option>
+                            <option value="High">High risk</option>
+                            <option value="Medium">Medium risk</option>
+                            <option value="Low">Low risk</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><button type="button" data-sort="name">Learner</button></th>
+                                <th><button type="button" data-sort="course_name">Course</button></th>
+                                <th><button type="button" data-sort="enrollment_date">Enrollment</button></th>
+                                <th><button type="button" data-sort="grade_last_updated">Last activity</button></th>
+                                <th><button type="button" data-sort="percent_grade">Progress</button></th>
+                                <th><button type="button" data-sort="completed_units">Units</button></th>
+                                <th><button type="button" data-sort="time_spent_hours">Time</button></th>
+                                <th><button type="button" data-sort="status">Status</button></th>
+                                <th><button type="button" data-sort="risk_level">Risk</button></th>
+                            </tr>
+                        </thead>
+                        <tbody id="learnerTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination-row">
+                    <span id="tableCount">0 learners</span>
+                    <div>
+                        <button id="prevPageBtn" class="mini-button" type="button">Previous</button>
+                        <span id="pageInfo">Page 1</span>
+                        <button id="nextPageBtn" class="mini-button" type="button">Next</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="drawerScrim" class="drawer-scrim" hidden></div>
+    <aside id="learnerDrawer" class="learner-drawer" aria-hidden="true">
+        <div class="drawer-header">
+            <div>
+                <span id="drawerKicker" class="panel-kicker">Learner Profile</span>
+                <h2 id="drawerTitle">Learner detail</h2>
+            </div>
+            <button id="drawerClose" class="icon-button" type="button" aria-label="Close learner detail">X</button>
+        </div>
+        <div id="drawerBody" class="drawer-body"></div>
+    </aside>
+</body>
+</html>

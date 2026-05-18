@@ -60,6 +60,9 @@ if PLUGIN_SLOTS:
                           <a className="btn btn-outline-primary" href={`${base}/userops/progress_overview`}>
                             Report Dashboard
                           </a>
+                          <a className="btn btn-outline-primary" href={`${base}/userops/progress_overview_test_1`}>
+                            Learning Intelligence
+                          </a>
                           <a className="btn btn-outline-primary" href={`${base}/userops/`}>
                             Bulk Enroll
                           </a>
