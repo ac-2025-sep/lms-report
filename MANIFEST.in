@@ -1,0 +1,2 @@
+recursive-include userops_reports/templates *
+recursive-include userops_reports/static *

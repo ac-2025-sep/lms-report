@@ -1,6 +1,7 @@
 import logging
+from importlib import resources
 
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
@@ -17,6 +18,11 @@ from userops_reports.services.course_reports import (
 from userops_reports.services.user_reports import get_user_details_by_id, get_user_details_by_username, search_users
 
 logger = logging.getLogger(__name__)
+
+DASHBOARD_ASSETS = {
+    "css": ("static/userops_reports/css/dashboard.css", "text/css"),
+    "js": ("static/userops_reports/js/dashboard.js", "application/javascript"),
+}
 
 
 def _safe_json(handler):
@@ -38,6 +44,35 @@ def _date_kwargs(request):
 @staff_required_view
 def progress_overview(request):
     return render(request, "userops_reports/progress_overview.html")
+
+
+def _dashboard_asset_response(asset_key):
+    try:
+        relative_path, content_type = DASHBOARD_ASSETS[asset_key]
+    except KeyError:
+        raise Http404("Dashboard asset not found")
+
+    try:
+        content = resources.files("userops_reports").joinpath(relative_path).read_bytes()
+    except FileNotFoundError:
+        logger.exception("Dashboard asset missing: %s", relative_path)
+        raise Http404("Dashboard asset not found")
+
+    response = HttpResponse(content, content_type=content_type)
+    response["Cache-Control"] = "private, max-age=300"
+    return response
+
+
+@require_GET
+@staff_required_view
+def dashboard_css(request):
+    return _dashboard_asset_response("css")
+
+
+@require_GET
+@staff_required_view
+def dashboard_js(request):
+    return _dashboard_asset_response("js")
 
 
 @require_GET

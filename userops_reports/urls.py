@@ -5,6 +5,8 @@ app_name = "userops_reports"
 
 urlpatterns = [
     path("progress_overview", views.progress_overview, name="progress_overview"),
+    path("assets/dashboard.css", views.dashboard_css, name="dashboard_css"),
+    path("assets/dashboard.js", views.dashboard_js, name="dashboard_js"),
     path("api/clusters", views.api_clusters, name="api_clusters"),
     path("api/cluster-performance", views.api_cluster_performance, name="api_cluster_performance"),
     path("api/asms", views.api_asms, name="api_asms"),

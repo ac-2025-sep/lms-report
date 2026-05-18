@@ -12,8 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Add SheetJS (xlsx) for Excel export -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'userops_reports/css/dashboard.css' %}">
+    <link rel="stylesheet" href="{% url 'userops_reports:dashboard_css' %}">
 </head>
 <body>
     <div class="loading-overlay" id="loadingOverlay">
@@ -439,6 +438,6 @@
         </div>
     </div>
 
-    <script src="{% static 'userops_reports/js/dashboard.js' %}"></script>
+    <script src="{% url 'userops_reports:dashboard_js' %}"></script>
 </body>
 </html>
