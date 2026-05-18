@@ -1,13 +1,14 @@
 from userops_reports.db import fetch_all_dict
-from userops_reports.services.common import as_float, as_int, date_filter_clause, iso
+from userops_reports.services.common import as_float, as_int, date_filter_clause, iso, meta_value, valid_meta
 
 
 def get_asms():
-    rows = fetch_all_dict("""
-        SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.asm')) as asm
+    asm_expr = meta_value("auth_userprofile", "asm")
+    rows = fetch_all_dict(f"""
+        SELECT DISTINCT {asm_expr} as asm
         FROM auth_userprofile
-        WHERE meta IS NOT NULL AND meta != '' AND meta != 'null' AND JSON_VALID(meta) = 1
-          AND JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.asm')) IS NOT NULL
+        WHERE {valid_meta("auth_userprofile")}
+          AND {asm_expr} IS NOT NULL
         ORDER BY asm
     """)
     return {"asms": [r["asm"] for r in rows if r.get("asm") and r.get("asm") != "null"]}
@@ -15,6 +16,7 @@ def get_asms():
 
 def get_rsms(date_range="all", start_date=None, end_date=None):
     date_clause, params = date_filter_clause("sce.created", date_range, start_date, end_date)
+    rsm_expr = meta_value("up", "rsm")
     rows = fetch_all_dict(f"""
         SELECT
             rsm_name as name,
@@ -25,7 +27,7 @@ def get_rsms(date_range="all", start_date=None, end_date=None):
             ROUND(AVG(avg_progress), 1) as avg_progress
         FROM (
             SELECT
-                COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')), ''), 'Unknown') as rsm_name,
+                COALESCE({rsm_expr}, 'Unknown') as rsm_name,
                 COUNT(DISTINCT u.id) as total_dealers,
                 COUNT(DISTINCT sce.course_id) as total_courses_assigned,
                 COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) >= 1.0 THEN sce.course_id END) as courses_completed,
@@ -36,11 +38,11 @@ def get_rsms(date_range="all", start_date=None, end_date=None):
             JOIN auth_userprofile up ON u.id = up.user_id
             LEFT JOIN student_courseenrollment sce ON u.id = sce.user_id AND sce.is_active = 1{date_clause}
             LEFT JOIN grades_persistentcoursegrade gpcg ON u.id = gpcg.user_id AND sce.course_id = gpcg.course_id
-            WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
-              AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) IS NOT NULL
-              AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) != ''
-              AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) != 'null'
-            GROUP BY u.id, COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')), ''), 'Unknown')
+            WHERE {valid_meta("up")}
+              AND {rsm_expr} IS NOT NULL
+              AND {rsm_expr} != ''
+              AND {rsm_expr} != 'null'
+            GROUP BY u.id, COALESCE({rsm_expr}, 'Unknown')
         ) AS subquery
         WHERE rsm_name IS NOT NULL AND rsm_name != '' AND rsm_name != 'null'
         GROUP BY rsm_name
@@ -51,22 +53,23 @@ def get_rsms(date_range="all", start_date=None, end_date=None):
 
 def get_asm_dealers(asm, date_range="all", start_date=None, end_date=None):
     date_clause, date_params = date_filter_clause("ce.created", date_range, start_date, end_date)
+    asm_expr = meta_value("up", "asm")
     rows = fetch_all_dict(f"""
         SELECT
             u.id as user_id, u.username, u.email, u.date_joined,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) as asm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) as rsm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_name')) as champion_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_mobile')) as champion_mobile,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.city')) as city,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.state')) as state,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_category')) as dealer_category,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.brand')) as brand,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.role')) as role,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.department')) as department,
+            {meta_value("up", "dealer_name")} as dealer_name,
+            {meta_value("up", "dealer_id")} as dealer_id,
+            {meta_value("up", "asm")} as asm,
+            {meta_value("up", "rsm")} as rsm,
+            {meta_value("up", "cluster")} as cluster,
+            {meta_value("up", "champion_name")} as champion_name,
+            {meta_value("up", "champion_mobile")} as champion_mobile,
+            {meta_value("up", "city")} as city,
+            {meta_value("up", "state")} as state,
+            {meta_value("up", "dealer_category")} as dealer_category,
+            {meta_value("up", "brand")} as brand,
+            {meta_value("up", "role")} as role,
+            {meta_value("up", "department")} as department,
             COUNT(DISTINCT ce.course_id) as courses_assigned,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) >= 1.0 THEN ce.course_id END) as completed_courses,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) > 0
@@ -77,8 +80,8 @@ def get_asm_dealers(asm, date_range="all", start_date=None, end_date=None):
         JOIN auth_userprofile up ON u.id = up.user_id
         LEFT JOIN student_courseenrollment ce ON u.id = ce.user_id AND ce.is_active = 1{date_clause}
         LEFT JOIN grades_persistentcoursegrade gpcg ON u.id = gpcg.user_id AND ce.course_id = gpcg.course_id
-        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
-          AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) = %s
+        WHERE {valid_meta("up")}
+          AND {asm_expr} = %s
         GROUP BY u.id, u.username, u.email, u.date_joined, up.meta
         ORDER BY dealer_name
     """, tuple(date_params + [asm]))

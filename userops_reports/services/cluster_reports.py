@@ -1,13 +1,14 @@
 from userops_reports.db import fetch_all_dict
-from userops_reports.services.common import as_float, as_int, date_filter_clause, iso
+from userops_reports.services.common import as_float, as_int, date_filter_clause, iso, meta_value, valid_meta
 
 
 def get_clusters():
-    rows = fetch_all_dict("""
-        SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.cluster')) as cluster
+    cluster_expr = meta_value("auth_userprofile", "cluster")
+    rows = fetch_all_dict(f"""
+        SELECT DISTINCT {cluster_expr} as cluster
         FROM auth_userprofile
-        WHERE meta IS NOT NULL AND meta != '' AND meta != 'null' AND JSON_VALID(meta) = 1
-          AND JSON_UNQUOTE(JSON_EXTRACT(meta, '$.org.cluster')) IS NOT NULL
+        WHERE {valid_meta("auth_userprofile")}
+          AND {cluster_expr} IS NOT NULL
         ORDER BY cluster
     """)
     return {"clusters": [r["cluster"] for r in rows if r.get("cluster") and r.get("cluster") != "null"]}
@@ -15,9 +16,10 @@ def get_clusters():
 
 def get_cluster_performance(date_range="all", start_date=None, end_date=None):
     date_clause, params = date_filter_clause("ce.created", date_range, start_date, end_date)
+    cluster_expr = meta_value("up", "cluster")
     query = f"""
         SELECT
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,
+            {cluster_expr} as cluster,
             COUNT(DISTINCT u.id) as total_users,
             COUNT(DISTINCT ce.course_id) as assigned_courses,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) >= 1.0 THEN ce.course_id END) as completed_courses,
@@ -29,10 +31,10 @@ def get_cluster_performance(date_range="all", start_date=None, end_date=None):
         JOIN auth_userprofile up ON u.id = up.user_id
         LEFT JOIN student_courseenrollment ce ON u.id = ce.user_id AND ce.is_active = 1{date_clause}
         LEFT JOIN grades_persistentcoursegrade gpcg ON u.id = gpcg.user_id AND ce.course_id = gpcg.course_id
-        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
-          AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) IS NOT NULL
-          AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) != ''
-        GROUP BY JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster'))
+        WHERE {valid_meta("up")}
+          AND {cluster_expr} IS NOT NULL
+          AND {cluster_expr} != ''
+        GROUP BY {cluster_expr}
         ORDER BY cluster
     """
     rows = fetch_all_dict(query, tuple(params))
@@ -59,21 +61,22 @@ def get_cluster_performance(date_range="all", start_date=None, end_date=None):
 
 def get_asm_performance(cluster, date_range="all", start_date=None, end_date=None):
     date_clause, date_params = date_filter_clause("ce.created", date_range, start_date, end_date)
+    cluster_expr = meta_value("up", "cluster")
     query = f"""
         SELECT
             u.id as user_id, u.username, u.email, u.date_joined,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) as asm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) as rsm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_name')) as champion_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_mobile')) as champion_mobile,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.city')) as city,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.state')) as state,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_category')) as dealer_category,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.brand')) as brand,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.role')) as role,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.department')) as department,
+            {meta_value("up", "dealer_name")} as dealer_name,
+            {meta_value("up", "dealer_id")} as dealer_id,
+            {meta_value("up", "asm")} as asm,
+            {meta_value("up", "rsm")} as rsm,
+            {meta_value("up", "champion_name")} as champion_name,
+            {meta_value("up", "champion_mobile")} as champion_mobile,
+            {meta_value("up", "city")} as city,
+            {meta_value("up", "state")} as state,
+            {meta_value("up", "dealer_category")} as dealer_category,
+            {meta_value("up", "brand")} as brand,
+            {meta_value("up", "role")} as role,
+            {meta_value("up", "department")} as department,
             COUNT(DISTINCT ce.course_id) as courses_assigned,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) >= 1.0 THEN ce.course_id END) as completed_courses,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) > 0
@@ -84,8 +87,8 @@ def get_asm_performance(cluster, date_range="all", start_date=None, end_date=Non
         JOIN auth_userprofile up ON u.id = up.user_id
         LEFT JOIN student_courseenrollment ce ON u.id = ce.user_id AND ce.is_active = 1{date_clause}
         LEFT JOIN grades_persistentcoursegrade gpcg ON u.id = gpcg.user_id AND ce.course_id = gpcg.course_id
-        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
-          AND JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) = %s
+        WHERE {valid_meta("up")}
+          AND {cluster_expr} = %s
         GROUP BY u.id, u.username, u.email, u.date_joined, up.meta
         ORDER BY dealer_name
     """

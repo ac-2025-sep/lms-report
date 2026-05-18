@@ -1,22 +1,24 @@
 from userops_reports.db import fetch_all_dict, fetch_one_dict
-from userops_reports.services.common import as_float, as_int, iso
+from userops_reports.services.common import as_float, as_int, iso, meta_value, valid_meta
 
 
 def search_users(query):
     search_pattern = f"%{query}%"
-    rows = fetch_all_dict("""
+    dealer_name_expr = meta_value("up", "dealer_name")
+    dealer_id_expr = meta_value("up", "dealer_id")
+    rows = fetch_all_dict(f"""
         SELECT
             u.id as user_id,
             u.username,
             u.email,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) as asm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) as rsm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_name')) as champion_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_mobile')) as champion_mobile,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.role')) as role,
+            {dealer_name_expr} as dealer_name,
+            {dealer_id_expr} as dealer_id,
+            {meta_value('up', 'cluster')} as cluster,
+            {meta_value('up', 'asm')} as asm,
+            {meta_value('up', 'rsm')} as rsm,
+            {meta_value('up', 'champion_name')} as champion_name,
+            {meta_value('up', 'champion_mobile')} as champion_mobile,
+            {meta_value('up', 'role')} as role,
             COUNT(DISTINCT sce.course_id) as courses_assigned,
             COUNT(DISTINCT CASE WHEN gc.id IS NOT NULL THEN sce.course_id END) as courses_completed,
             ROUND(AVG(COALESCE(gpcg.percent_grade, 0)) * 100, 1) as avg_progress
@@ -27,17 +29,17 @@ def search_users(query):
             AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
         LEFT JOIN grades_persistentcoursegrade gpcg ON u.id = gpcg.user_id
             AND sce.course_id = gpcg.course_id
-        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+        WHERE {valid_meta("up")}
           AND (
             u.username LIKE %s
-            OR JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) LIKE %s
-            OR JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) LIKE %s
+            OR {dealer_name_expr} LIKE %s
+            OR {dealer_id_expr} LIKE %s
           )
         GROUP BY u.id, u.username, u.email, up.meta
         ORDER BY
             CASE
                 WHEN u.username LIKE %s THEN 1
-                WHEN JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) LIKE %s THEN 2
+                WHEN {dealer_name_expr} LIKE %s THEN 2
                 ELSE 3
             END,
             u.username
@@ -72,26 +74,26 @@ def get_user_details_by_username(username):
 
 
 def get_user_details_by_id(user_id):
-    row = fetch_one_dict("""
+    row = fetch_one_dict(f"""
         SELECT
             u.id as user_id,
             u.username,
             u.email,
             u.date_joined,
             u.is_active,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) as asm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) as rsm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_name')) as champion_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.champion_mobile')) as champion_mobile,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.city')) as city,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.state')) as state,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_category')) as dealer_category,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.role')) as role,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.department')) as department,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.brand')) as brand,
+            {meta_value('up', 'dealer_name')} as dealer_name,
+            {meta_value('up', 'dealer_id')} as dealer_id,
+            {meta_value('up', 'cluster')} as cluster,
+            {meta_value('up', 'asm')} as asm,
+            {meta_value('up', 'rsm')} as rsm,
+            {meta_value('up', 'champion_name')} as champion_name,
+            {meta_value('up', 'champion_mobile')} as champion_mobile,
+            {meta_value('up', 'city')} as city,
+            {meta_value('up', 'state')} as state,
+            {meta_value('up', 'dealer_category')} as dealer_category,
+            {meta_value('up', 'role')} as role,
+            {meta_value('up', 'department')} as department,
+            {meta_value('up', 'brand')} as brand,
             COUNT(DISTINCT sce.course_id) as total_courses_assigned,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) >= 1.0 THEN sce.course_id END) as courses_completed,
             COUNT(DISTINCT CASE WHEN COALESCE(gpcg.percent_grade, 0) > 0

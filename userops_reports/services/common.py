@@ -47,6 +47,21 @@ def date_filter_clause(column, date_range="all", start_date=None, end_date=None)
     return "", []
 
 
+def meta_value(alias, field):
+    """Read UserOps metadata from either top-level keys or legacy org-nested keys."""
+
+    return (
+        "COALESCE("
+        f"NULLIF(JSON_UNQUOTE(JSON_EXTRACT({alias}.meta, '$.{field}')), ''), "
+        f"NULLIF(JSON_UNQUOTE(JSON_EXTRACT({alias}.meta, '$.org.{field}')), '')"
+        ")"
+    )
+
+
+def valid_meta(alias):
+    return f"{alias}.meta IS NOT NULL AND {alias}.meta != '' AND {alias}.meta != 'null' AND JSON_VALID({alias}.meta) = 1"
+
+
 def iso(value):
     return value.isoformat() if value else None
 

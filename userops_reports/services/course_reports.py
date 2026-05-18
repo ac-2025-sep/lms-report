@@ -1,5 +1,5 @@
 from userops_reports.db import fetch_all_dict, fetch_one_dict
-from userops_reports.services.common import as_float, as_int, date_filter_clause, iso
+from userops_reports.services.common import as_float, as_int, date_filter_clause, iso, meta_value, valid_meta
 
 
 def get_courses():
@@ -33,7 +33,7 @@ def get_courses_overview(date_range="all", start_date=None, end_date=None):
             AND sce.course_id = gc.course_id AND gc.status = 'downloadable'
         LEFT JOIN grades_persistentcoursegrade gpcg ON sce.course_id = gpcg.course_id
             AND sce.user_id = gpcg.user_id
-        WHERE up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+        WHERE {valid_meta("up")}
         GROUP BY co.id, co.display_name, co.start, co.end, co.org
         ORDER BY co.display_name
     """, tuple(params))
@@ -94,7 +94,7 @@ def get_course_details(course_id, date_range="all", start_date=None, end_date=No
             FROM courseware_studentmodule
         ) sm ON sce.user_id = sm.student_id AND sce.course_id = sm.course_id
         WHERE sce.course_id = %s AND sce.is_active = 1{date_clause}
-          AND up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+          AND {valid_meta("up")}
     """, tuple([course_id] + date_params)) or {}
 
     passed = as_int(stats.get("passed_count"))
@@ -138,21 +138,21 @@ def get_course_learners(course_id, date_range="all", start_date=None, end_date=N
             au.username,
             au.email,
             COALESCE(
-                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.name')), ''),
-                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')), ''),
+                {meta_value("up", "name")},
+                {meta_value("up", "dealer_name")},
                 au.username
             ) as name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_name')) as dealer_name,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_id')) as dealer_id,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.city')) as city,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.state')) as state,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.dealer_category')) as dealer_category,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.cluster')) as cluster,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.asm')) as asm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.rsm')) as rsm,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.role')) as role,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.department')) as department,
-            JSON_UNQUOTE(JSON_EXTRACT(up.meta, '$.org.brand')) as brand,
+            {meta_value("up", "dealer_name")} as dealer_name,
+            {meta_value("up", "dealer_id")} as dealer_id,
+            {meta_value("up", "city")} as city,
+            {meta_value("up", "state")} as state,
+            {meta_value("up", "dealer_category")} as dealer_category,
+            {meta_value("up", "cluster")} as cluster,
+            {meta_value("up", "asm")} as asm,
+            {meta_value("up", "rsm")} as rsm,
+            {meta_value("up", "role")} as role,
+            {meta_value("up", "department")} as department,
+            {meta_value("up", "brand")} as brand,
             ROUND(gpcg.percent_grade * 100, 2) AS percent_grade,
             gpcg.letter_grade,
             CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN 'Passed' ELSE 'Not Passed' END AS completion_status,
@@ -173,7 +173,7 @@ def get_course_learners(course_id, date_range="all", start_date=None, end_date=N
         LEFT JOIN courseware_studentmodule AS sm ON sm.student_id = sce.user_id
             AND sm.course_id = sce.course_id
         WHERE sce.course_id = %s AND sce.is_active = 1{date_clause}
-          AND up.meta IS NOT NULL AND up.meta != '' AND up.meta != 'null' AND JSON_VALID(up.meta) = 1
+          AND {valid_meta("up")}
         GROUP BY sce.course_id, au.id, au.username, au.email, up.meta, gpcg.percent_grade,
             gpcg.letter_grade, gpcg.passed_timestamp, gpcg.modified, sce.mode, sce.created
         ORDER BY
