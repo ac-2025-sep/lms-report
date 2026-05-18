@@ -159,23 +159,14 @@ def get_course_learners(course_id, date_range="all", start_date=None, end_date=N
             gpcg.passed_timestamp,
             gpcg.modified AS grade_last_updated,
             sce.mode as enrollment_mode,
-            sce.created as enrollment_date,
-            COUNT(DISTINCT CASE WHEN sm.state LIKE '%complete%' OR sm.state LIKE '%done%' OR sm.grade > 0 THEN sm.id END) AS completed_modules,
-            COUNT(DISTINCT CASE WHEN sm.id IS NOT NULL
-                AND (sm.state NOT LIKE '%complete%' AND sm.state NOT LIKE '%done%' AND (sm.grade IS NULL OR sm.grade = 0))
-                THEN sm.id END) AS in_progress_modules,
-            COUNT(DISTINCT sm.id) AS total_modules_attempted
+            sce.created as enrollment_date
         FROM student_courseenrollment AS sce
         JOIN auth_user AS au ON au.id = sce.user_id
         JOIN auth_userprofile AS up ON au.id = up.user_id
         LEFT JOIN grades_persistentcoursegrade AS gpcg ON gpcg.course_id = sce.course_id
             AND gpcg.user_id = sce.user_id
-        LEFT JOIN courseware_studentmodule AS sm ON sm.student_id = sce.user_id
-            AND sm.course_id = sce.course_id
         WHERE sce.course_id = %s AND sce.is_active = 1{date_clause}
           AND {valid_meta("up")}
-        GROUP BY sce.course_id, au.id, au.username, au.email, up.meta, gpcg.percent_grade,
-            gpcg.letter_grade, gpcg.passed_timestamp, gpcg.modified, sce.mode, sce.created
         ORDER BY
             CASE WHEN gpcg.passed_timestamp IS NOT NULL THEN 1 WHEN gpcg.percent_grade > 0 THEN 2 ELSE 3 END,
             gpcg.percent_grade DESC
@@ -183,8 +174,8 @@ def get_course_learners(course_id, date_range="all", start_date=None, end_date=N
     learners = []
     for row in rows:
         percent_grade = as_float(row.get("percent_grade"))
-        completed_modules = as_int(row.get("completed_modules"))
-        status = "completed" if row.get("completion_status") == "Passed" else "in_progress" if completed_modules > 0 or percent_grade > 0 else "not_started"
+        completed_modules = 0
+        status = "completed" if row.get("completion_status") == "Passed" else "in_progress" if percent_grade > 0 else "not_started"
         learners.append({
             "user_id": row["user_id"],
             "username": row["username"],
@@ -210,8 +201,8 @@ def get_course_learners(course_id, date_range="all", start_date=None, end_date=N
             "enrollment_mode": row.get("enrollment_mode"),
             "enrollment_date": iso(row.get("enrollment_date")),
             "completed_modules": completed_modules,
-            "in_progress_modules": as_int(row.get("in_progress_modules")),
-            "total_modules": as_int(row.get("total_modules_attempted")),
+            "in_progress_modules": 0,
+            "total_modules": 0,
             "status": status,
         })
     return {"learners": learners}
