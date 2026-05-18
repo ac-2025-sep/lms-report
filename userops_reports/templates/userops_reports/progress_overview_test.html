@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UserOps Report Lab</title>
+    <link rel="stylesheet" href="/userops/assets/report-test.css">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">UserOps Report Lab</div>
+                <h1>LMS performance command center</h1>
+                <p>Courses, clusters, ASMs, dealers, and learners in one operational view.</p>
+            </div>
+            <div class="topbar-actions">
+                <label class="field compact-field">
+                    <span>Date range</span>
+                    <select id="dateRange">
+                        <option value="all">All time</option>
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="this_week">This week</option>
+                        <option value="last_week">Last week</option>
+                        <option value="this_month">This month</option>
+                        <option value="last_month">Last month</option>
+                        <option value="last_3_months">Last 3 months</option>
+                        <option value="last_6_months">Last 6 months</option>
+                        <option value="this_year">This year</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+                <label class="field custom-date is-hidden">
+                    <span>Start</span>
+                    <input id="startDate" type="date">
+                </label>
+                <label class="field custom-date is-hidden">
+                    <span>End</span>
+                    <input id="endDate" type="date">
+                </label>
+                <button id="refreshBtn" class="button primary" type="button">Refresh</button>
+                <button id="exportBtn" class="button" type="button">Export CSV</button>
+            </div>
+        </header>
+
+        <section id="noticeRegion" class="notice-region" aria-live="polite"></section>
+
+        <section class="kpi-grid" aria-label="Report summary">
+            <article class="kpi-card">
+                <span>Active courses</span>
+                <strong id="kpiCourses">0</strong>
+                <small id="kpiCoursesSub">Loaded courses</small>
+            </article>
+            <article class="kpi-card">
+                <span>Assignments</span>
+                <strong id="kpiAssignments">0</strong>
+                <small>Total enrollments</small>
+            </article>
+            <article class="kpi-card">
+                <span>Completed</span>
+                <strong id="kpiCompleted">0</strong>
+                <small id="kpiCompletionRate">0% completion</small>
+            </article>
+            <article class="kpi-card">
+                <span>In progress</span>
+                <strong id="kpiInProgress">0</strong>
+                <small>Started but incomplete</small>
+            </article>
+            <article class="kpi-card">
+                <span>Not started</span>
+                <strong id="kpiNotStarted">0</strong>
+                <small>Needs attention</small>
+            </article>
+            <article class="kpi-card">
+                <span>Dealers</span>
+                <strong id="kpiDealers">0</strong>
+                <small>With reporting metadata</small>
+            </article>
+            <article class="kpi-card">
+                <span>Clusters</span>
+                <strong id="kpiClusters">0</strong>
+                <small>Network coverage</small>
+            </article>
+            <article class="kpi-card">
+                <span>ASMs</span>
+                <strong id="kpiAsms">0</strong>
+                <small>Field owners</small>
+            </article>
+        </section>
+
+        <nav class="tabs" aria-label="Report sections">
+            <button class="tab is-active" type="button" data-view="overview">Overview</button>
+            <button class="tab" type="button" data-view="courses">Courses</button>
+            <button class="tab" type="button" data-view="clusters">Clusters</button>
+            <button class="tab" type="button" data-view="asms">ASMs</button>
+            <button class="tab" type="button" data-view="learners">Learner Search</button>
+        </nav>
+
+        <main>
+            <section id="overviewView" class="view is-active">
+                <div class="overview-grid">
+                    <article class="panel status-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Status distribution</h2>
+                                <p>Completion mix across current filters.</p>
+                            </div>
+                        </div>
+                        <div class="status-layout">
+                            <div class="donut" id="statusDonut" aria-label="Status distribution chart"></div>
+                            <div class="legend" id="statusLegend"></div>
+                        </div>
+                    </article>
+
+                    <article class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Top courses</h2>
+                                <p>Highest enrollment courses.</p>
+                            </div>
+                            <button class="link-button" type="button" data-jump="courses">Open courses</button>
+                        </div>
+                        <div id="topCourses" class="stack-list"></div>
+                    </article>
+
+                    <article class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Cluster performance</h2>
+                                <p>Progress by cluster.</p>
+                            </div>
+                            <button class="link-button" type="button" data-jump="clusters">Open clusters</button>
+                        </div>
+                        <div id="clusterBars" class="bar-list"></div>
+                    </article>
+
+                    <article class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>Attention queue</h2>
+                                <p>Courses with the largest not-started population.</p>
+                            </div>
+                        </div>
+                        <div id="attentionList" class="stack-list"></div>
+                    </article>
+                </div>
+            </section>
+
+            <section id="coursesView" class="view">
+                <div class="table-panel panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Courses</h2>
+                            <p>Click a course for learner-level detail.</p>
+                        </div>
+                        <input id="courseFilter" class="search-input" type="search" placeholder="Filter courses">
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th><button type="button" data-sort="course_name">Course</button></th>
+                                    <th><button type="button" data-sort="total_enrollments">Enrollments</button></th>
+                                    <th><button type="button" data-sort="certificates_issued">Completed</button></th>
+                                    <th><button type="button" data-sort="in_progress_count">In progress</button></th>
+                                    <th><button type="button" data-sort="avg_grade">Average</button></th>
+                                    <th>Last activity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coursesTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="clustersView" class="view">
+                <div class="table-panel panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Clusters</h2>
+                            <p>Click a cluster for dealer and RSM detail.</p>
+                        </div>
+                        <input id="clusterFilter" class="search-input" type="search" placeholder="Filter clusters">
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th><button type="button" data-sort="cluster">Cluster</button></th>
+                                    <th><button type="button" data-sort="total_users">Dealers</button></th>
+                                    <th><button type="button" data-sort="assigned_courses">Assigned</button></th>
+                                    <th><button type="button" data-sort="completed_courses">Completed</button></th>
+                                    <th><button type="button" data-sort="in_progress">In progress</button></th>
+                                    <th><button type="button" data-sort="not_started">Not started</button></th>
+                                    <th><button type="button" data-sort="avg_progress">Average</button></th>
+                                </tr>
+                            </thead>
+                            <tbody id="clustersTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="asmsView" class="view">
+                <div class="table-panel panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>ASMs</h2>
+                            <p>Click an ASM for dealer and cluster distribution.</p>
+                        </div>
+                        <input id="asmFilter" class="search-input" type="search" placeholder="Filter ASMs">
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th><button type="button" data-sort="name">ASM</button></th>
+                                    <th><button type="button" data-sort="dealers">Dealers</button></th>
+                                    <th><button type="button" data-sort="assigned_courses">Assigned</button></th>
+                                    <th><button type="button" data-sort="completed_courses">Completed</button></th>
+                                    <th><button type="button" data-sort="in_progress">In progress</button></th>
+                                    <th><button type="button" data-sort="not_started">Not started</button></th>
+                                    <th><button type="button" data-sort="avg_progress">Average</button></th>
+                                </tr>
+                            </thead>
+                            <tbody id="asmsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="learnersView" class="view">
+                <div class="panel learner-search-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Learner search</h2>
+                            <p>Search username, dealer name, or dealer ID.</p>
+                        </div>
+                    </div>
+                    <div class="search-row">
+                        <input id="learnerSearch" class="large-search" type="search" placeholder="Type at least 2 characters">
+                        <button id="learnerSearchBtn" class="button primary" type="button">Search</button>
+                    </div>
+                    <div id="learnerResults" class="result-grid"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
+        <div class="drawer-header">
+            <div>
+                <span id="drawerKicker" class="drawer-kicker">Details</span>
+                <h2 id="drawerTitle">Report detail</h2>
+            </div>
+            <button id="drawerClose" class="icon-button" type="button" aria-label="Close detail drawer">X</button>
+        </div>
+        <div id="drawerBody" class="drawer-body"></div>
+    </aside>
+    <div id="drawerScrim" class="drawer-scrim"></div>
+
+    <script src="/userops/assets/report-test.js"></script>
+</body>
+</html>

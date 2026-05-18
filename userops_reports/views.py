@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 DASHBOARD_ASSETS = {
     "css": ("static/userops_reports/css/dashboard.css", "text/css"),
     "js": ("static/userops_reports/js/dashboard.js", "application/javascript"),
+    "test_css": ("static/userops_reports/css/report_test.css", "text/css"),
+    "test_js": ("static/userops_reports/js/report_test.js", "application/javascript"),
 }
 
 
@@ -44,6 +46,12 @@ def _date_kwargs(request):
 @staff_required_view
 def progress_overview(request):
     return render(request, "userops_reports/progress_overview.html")
+
+
+@require_GET
+@staff_required_view
+def progress_overview_test(request):
+    return render(request, "userops_reports/progress_overview_test.html")
 
 
 def _dashboard_asset_response(asset_key):
@@ -73,6 +81,18 @@ def dashboard_css(request):
 @staff_required_view
 def dashboard_js(request):
     return _dashboard_asset_response("js")
+
+
+@require_GET
+@staff_required_view
+def report_test_css(request):
+    return _dashboard_asset_response("test_css")
+
+
+@require_GET
+@staff_required_view
+def report_test_js(request):
+    return _dashboard_asset_response("test_js")
 
 
 @require_GET
